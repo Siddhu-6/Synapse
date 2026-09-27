@@ -3,7 +3,7 @@
 > A personal agentic assistant that takes a goal, plans it, executes it through MCP tools and specialist agents,
 > verifies what it did, asks before anything risky, and keeps what matters in an Obsidian vault.
 
-Synapse is not a chatbot that just **answers**, but a multi-agent system that **executes**. Every request is understood, planned, handed to the right agent, executed through real tools, checked, and remembered, and the dashboard shows each step happening live.
+Synapse is not a chatbot that just "**answers**", but a multi-agent system that "**executes**". Every request is understood, planned, handed to the right agent, executed through real tools, checked, and remembered, and the dashboard shows each step happening live.
 
 Small talk gets a quick answer. Real work gets a plan, a team, and reliable execution. Anything irreversible with high risks waits for your approval, because autonomy without accountability is just a very confident bug.
 
