@@ -1,135 +1,99 @@
 # Synapse
 
-A personal agentic assistant that takes a goal, plans it, executes it through MCP tools and specialist agents, verifies what it did, asks before anything risky, and keeps what matters in an Obsidian vault.
+> A personal AI assistant that plans, researches, writes to your Obsidian vault, reads your email,
+> and politely asks before doing anything it can't take back.
 
-Local-first: the default setup runs entirely on your machine with Ollama. No API key, no data leaving the laptop.
+Synapse is not a chatbot with a to-do list glued on. It's an agent system: every request is understood,
+planned, executed through real tools, checked, and remembered. You can watch all of it happen live.
 
-```
-goal ─► recall ─► plan ─► step ─► verify ──passed──► respond ─► memorize
-       (memory)   (LLM)    │       (independent                 (facts +
-                           │        read-back)                   episode)
-                    approval gate                │ failed & replans < max
-                    (LangGraph interrupt)        └────► replan ──┘
-```
+Think of it as an intern who never sleeps, always shows their work, and physically cannot send an email
+without your signature.
+
+![Synapse dashboard](docs/screenshot.png)
+
+---
 
 ## What it does
 
-- **Answers small talk instantly.** A cheap triage call routes greetings and general questions straight to an
-  answer — no plan, no tools. Anything about the *current* state of the world is routed to research instead,
-  because the model's training data is stale.
-- **Plans then executes.** The plan is fixed from your goal before any external content is read, so retrieved text cannot inject new tool calls.
-- **Runs tools over MCP.** Four stdio servers (vault, tasks, research, google) discovered at startup; every call is schema-validated, timed out, risk-classified and logged.
-- **Uses a CrewAI crew where it earns its place.** Analyst → Writer → Critic turns gathered sources into a report. Everything else is plain LangGraph.
-- **Asks before risky actions.** Deleting, overwriting, emailing and calendar writes pause the graph with a real `interrupt()`; the run is checkpointed and survives a restart.
-- **Proves its writes.** Write tools return a verification recipe; the verifier re-reads the note and compares hashes.
-- **Remembers, selectively.** Durable facts about you plus one episode per run, with provenance. Research goes to the vault, not to memory.
-- **Never fakes completion.** A goal that asks to save something is rejected at planning time unless the plan
-  calls a real vault write tool, and fails verification unless a file actually landed. Text-only "saves" are impossible.
-- **Repairs itself cheaply.** A bad tool argument costs one small correction call, not a whole replan — and repaired
-  arguments never inherit an approval you gave for different ones.
-- **Shows its work live.** A black-and-grey dashboard (light and dark modes, an always-dark sidebar, one sky-green accent for anything live): every exchange is a numbered entry on one line (the axon),
-  with its plan, approvals and answer; the margin shows the pipeline and per-span trace with token counts. Agents,
-  vault graph, memory, tools and eval results each have a view. Progress streams *during* long nodes. ⌘K searches
-  every conversation and entry; ⌘J starts a new one.
+- **Answers fast when it already knows.** "What is RAG?" takes about 3 seconds. No committee meeting required.
+- **Researches when it doesn't.** It reads real pages and keeps only links it actually opened. The made-up ones get deleted before you see them.
+- **Keeps your vault tidy.** "Add this to Sid's note" updates the existing note. It will not create "Sid's Personality (2).md". We've been through this.
+- **Reads your email properly.** "Did Vamshi reply?" reads the whole thread. (He said "Hello brother". Riveting stuff.)
+- **Calls in specialists.** Type `/study`, `/decide`, `/research`, `/review` or `/notes` and a small team of agents gets to work.
 
-## Status
+## How it works
 
-| Area | State |
-|---|---|
-| LangGraph runtime (plan → execute → verify → bounded replan → respond → memorize) | Working, tested |
-| MCP boundary: schema validation, timeouts, risk policy, read-only retries | Working, tested |
-| Vault tools: create / append / update / read / search / gather / list / delete | Working, tested |
-| Organiser tools: move, replace_section, add_tags, related_notes, vault_stats, list_folders | Working, tested |
-| Keyless web search (ddgs with an HTML fallback) | Working, verified live |
-| Fast-provider routing with local fallback | Working, tested |
-| Parallel independent reads | Working, tested |
-| Write verification by read-back and hash; optimistic concurrency on updates | Working, tested |
-| Human-in-the-loop approvals (CLI + HTTP), resumable after restart | Working, tested |
-| Guardrails: injection scan, taint tracking, recipient policy, budgets | Working, tested |
-| Memory: semantic facts + episodes, embeddings with keyword fallback | Working, tested |
-| Traces, metrics, run history | Working, tested |
-| Dashboard (React, live SSE, Agents view) | Working; builds and served by the API |
-| Eval suite, 16 scenarios | Working, 16/16 pass |
-| Browser checks (console, a11y, keyboard, responsive, main-thread) | Working, 17/17 pass |
-| Notes addressable by bare name (`delete Lionel Messi`) | Working, tested |
-| Command palette (⌘K), skip link, ARIA tabs, focus management | Working, browser-verified |
-| Plan honesty checks (a save goal must write a real file) | Working, tested |
-| Argument repair on schema violations | Working, tested |
-| CrewAI research crew | Working; verified live against Ollama |
-| Web research (DuckDuckGo + fetch) | Working; needs network, disabled in tests |
-| Chat threading: follow-ups in one conversation, new-chat button | Working, tested |
-| Markdown rendering: tables, checkboxes, code, headings | Working |
-| Notion: search, read, create page, append, add database row | Implemented, **not yet verified live** (needs your token) |
-| n8n workflows (WhatsApp/Slack/SMS via webhook allowlist) + desktop notifications | Working, tested offline |
-| Gmail / Calendar tools | Implemented, **not yet verified live** (needs your Google OAuth client) |
-| Docker, CI | Written, **not built here** (no Docker in the dev sandbox); CI steps all pass locally |
+```
+You --> Triage --> "I know this" ------------------------------------> Answer
+          |
+          +--> Plan --> Steps (tools, writer, crews) --> Verify --> Respond --> Memory
+                 ^                  |                       |
+                 +--- replan (bounded) <--- failed ---------+
+                                    |
+                           risky? --> Human approval
+```
 
-Tests and offline evals replace **only the model** with a scripted stand-in. The graph, MCP servers, guardrails, checkpointer, memory, vault and HTTP API are real in every test.
+- **LangGraph** runs the show: a checkpointed state machine that survives crashes and waits patiently for your approval.
+- **MCP** is the bouncer. Every capability (vault, web, Gmail, Calendar, Notion, tasks, n8n) goes through a typed, time-limited, risk-classed tool boundary.
+- **CrewAI** supplies specialist teams for the jobs where several opinions beat one prompt.
+- **Memory** comes in three flavours: past runs, facts you told it, and your Obsidian vault as long-term knowledge.
 
-## Making it fast
+### The crews
 
-A local 7B plans in 30–70s and writes each section in ~40s, so a five-step run takes minutes. Three levers, in
-order of effect:
+| Command | Crew | Team |
+|---|---|---|
+| `/research` | Research | researcher, analyst, writer |
+| `/study` | Study | curriculum designer, tutor, quizmaster |
+| `/review` | Editor | critic, editor |
+| `/notes` | Archivist | archivist, synthesiser |
+| `/decide` | Decision | advocate, skeptic, judge (mostly civil) |
 
-1. **Point it at a free hosted model.** Set `SYNAPSE_FAST_BASE_URL`, `SYNAPSE_FAST_MODEL` and `SYNAPSE_FAST_API_KEY`
-   (Groq and Cerebras both have free tiers). Planning and writing drop to a few seconds, and quality improves.
-   The local model stays as an automatic fallback, so a spent quota degrades instead of failing.
-2. **Keep plans short.** The planner is capped at 6 steps, told to aim for 2–3, allowed one research step, and
-   limited to 700 tokens of plan JSON. Step descriptions are capped at 10 words.
-3. **Parallel reads.** Consecutive independent read-only steps run concurrently (`SYNAPSE_PARALLEL_STEPS`), and the
-   model stays resident in Ollama (`keep_alive=30m`) so calls don't pay a reload.
+Crews can look things up but never touch anything. Writing, sending and deleting stay in the main graph,
+where approvals and guardrails live. Nobody gets to freelance.
 
-The crew is two agents by default; the critic is opt-in (`SYNAPSE_CREW_CRITIC=true`) because it roughly doubles
-crew latency.
+## Guardrails
 
-## Quick start (macOS)
+Otherwise known as the "please don't email my professor at 3am" layer.
 
-Full step-by-step: **[SETUP.md](SETUP.md)**.
+- **The plan is locked in first.** Synapse decides what to do before it reads any web page or email, so text hidden inside them can't add new actions.
+- **Suspicious sources are tracked.** Anything that came from the web or someone else's email stays marked as untrusted all the way through.
+- **Risky actions need your signature.** Sending, deleting and overwriting always wait for you.
+- **Strangers stay off the recipient list.** It won't email an address you never gave it.
+- **Hard budgets on everything.** Steps, replans, model calls and crew tool calls are all capped, so there are no infinite loops and no surprise bills.
+
+Guardrails reduce risk. They do not turn a language model into a lawyer.
+See [`docs/GUARDRAILS.md`](docs/GUARDRAILS.md).
+
+## Observability and evals
+
+- **Every run is traced:** model, latency, tokens, tool calls, retries, approvals, and why it fell back to another model if it did.
+- **The dashboard shows it all live:** the pipeline, agents lighting up as they work, answers streaming in, your vault as a graph, and memory.
+- **Behaviour evals:** `python -m evals.run` checks tool choice, arguments, approvals, recovery and prompt injection against the real graph.
+- **78 tests,** which test behaviour, not whether `import` works.
+
+## Quick start
 
 ```bash
-brew install uv node ollama
-ollama serve                                 # separate terminal
-ollama pull qwen2.5:7b-instruct
-
-uv sync --extra dev --extra google           # Python 3.12 + pinned deps (add --extra crew for CrewAI)
-cp .env.example .env                         # point SYNAPSE_VAULT_PATH at your vault
-uv run synapse doctor                        # checks Ollama, model, MCP servers, vault path
-
-uv run pytest -q                             # tests
-uv run python -m evals.run                   # 16 behaviour scenarios
-
-cd web && npm install && npm run build && cd ..
-uv run synapse-api                           # http://127.0.0.1:8000
+git clone https://github.com/<your-username>/synapse.git && cd synapse
+uv venv && uv pip install -e ".[crew,google,dev]"
+cp .env.example .env            # set SYNAPSE_VAULT_PATH, and ideally a free Groq key
+ollama pull qwen2.5:7b-instruct # optional local fallback
+uv run synapse-api              # then open http://127.0.0.1:8000
 ```
 
-CLI instead of the dashboard:
+Want it fast and free? Put a free [Groq](https://console.groq.com/keys) key in `.env` and
+`openai/gpt-oss-120b` answers in 1 to 3 seconds. You can switch models any time from the button next to the
+message box.
 
-```bash
-uv run synapse run "Compare LangGraph and CrewAI, then save the comparison to Research/"
-```
+Gmail and Calendar, Notion and n8n are optional. `SETUP.md` has the details.
 
-Integrations (Groq, Gmail/Calendar, Notion, n8n for WhatsApp/Telegram/Slack), every setting, GitHub and
-deployment are covered step by step in the **[guide (PDF)](Synapse-Deployment-Guide.pdf)**.
+## Stack
 
-## Docs
+Python, LangGraph, CrewAI, MCP, FastAPI, SQLite, React + Vite + Tailwind, Ollama, Groq, Obsidian
 
-- [Architecture](docs/ARCHITECTURE.md) — graph, state, MCP boundary, memory, traces
-- **[Setup, Integrations & Deployment Guide (PDF)](Synapse-Deployment-Guide.pdf)** — the full manual
-- [Deploy](DEPLOY.md) — always-on Mac, Docker, or a public URL
-- [Capabilities](docs/CAPABILITIES.md) — what to actually ask it for
-- [Tools](docs/TOOLS.md) — every tool, its schema, risk level and failure modes
-- [Guardrails](docs/GUARDRAILS.md) — what is protected, and what is not
-- [Evaluation](docs/EVALUATION.md) — methodology and how to run it
-- [Setup](SETUP.md) — environment, Google/Notion/n8n, Docker
-- [Demo scenarios](docs/DEMO.md) — what to show in an interview
-- [Limitations](docs/LIMITATIONS.md) — known gaps, honestly
+---
 
-## Layout
+Built by **Siddhikesh Gavit**, final-year CSE at IIIT Vadodara.
 
-```
-synapse/            runtime (graph, tools, memory, guardrails, tracing, api, cli)
-synapse/mcp_servers vault, tasks, research, google — separate processes over stdio
-web/                React dashboard (Vite, Tailwind, React Flow)
-evals/              scenario suite + runner
-tests/              pytest: runtime, tools, api
-```
+If it ever sends an email you didn't approve, that's a bug.
+If it signs the email "Best regards, Synapse", that's also a bug.
