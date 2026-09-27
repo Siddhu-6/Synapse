@@ -109,17 +109,44 @@ Local-first with **Ollama**, or free and fast with **Groq** (`openai/gpt-oss-120
 Switch models from the dashboard at any time. Each run finishes on the model it started with, and a hosted
 model that hits a problem falls back to local automatically.
 
-## Quick start
+## Quickstart
 
 ```bash
-git clone https://github.com/<your-username>/synapse.git && cd synapse
+git clone https://github.com/Siddhu-6/Synapse.git && cd Synapse
 uv venv && uv pip install -e ".[crew,google,dev]"
-cp .env.example .env            # set SYNAPSE_VAULT_PATH, and ideally a free Groq key
-ollama pull qwen2.5:7b-instruct # optional local fallback
-uv run synapse-api              # then open http://127.0.0.1:8000
+cd web && npm install && npm run build && cd ..
+cp .env.example .env
 ```
 
-Gmail and Calendar, Notion and n8n are optional. `SETUP.md` walks through each.
+In `.env`, set your vault path and a free [Groq key](https://console.groq.com/keys):
+
+```bash
+SYNAPSE_VAULT_PATH=/absolute/path/to/your/ObsidianVault
+SYNAPSE_FAST_BASE_URL=https://api.groq.com/openai/v1
+SYNAPSE_FAST_MODEL=openai/gpt-oss-120b
+SYNAPSE_FAST_API_KEY=gsk_...
+```
+
+```bash
+uv run synapse-api    # open http://127.0.0.1:8000
+```
+
+Prefer fully local? Skip the Groq lines and run `ollama pull qwen2.5:7b-instruct`.
+Gmail, Calendar, Notion and WhatsApp (via n8n) are optional; see [SETUP.md](SETUP.md).
+
+### Documentation
+
+| Doc | What's inside |
+|---|---|
+| [SETUP.md](SETUP.md) | Full setup, every environment variable explained |
+| [DEPLOY.md](DEPLOY.md) | Docker, running it beyond localhost, API token |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Graph design, agents, memory, how a run flows |
+| [docs/CAPABILITIES.md](docs/CAPABILITIES.md) | Everything Synapse can do, with example prompts |
+| [docs/TOOLS.md](docs/TOOLS.md) | Every MCP tool: schema, risk class, behaviour |
+| [docs/GUARDRAILS.md](docs/GUARDRAILS.md) | Threat model, what's protected, what isn't |
+| [docs/EVALUATION.md](docs/EVALUATION.md) | How behaviour is evaluated and what the scenarios cover |
+| [docs/DEMO.md](docs/DEMO.md) | A guided demo script |
+| [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | Known limits, stated plainly |
 
 ## Stack
 
