@@ -8,7 +8,7 @@ Synapse is not a chatbot that just "**answers**", but a multi-agent system that 
 Small talk gets a quick answer. Real work gets a plan, a team, and reliable execution. Anything irreversible with high risks waits for your approval, because autonomy without accountability is just a very confident bug.
 
 <p align="center">
-  <img src="docs/images/dashboard.png" alt="Synapse dashboard: live journal, pipeline and trace" width="100%">
+  <img src="docs/images/dashboard.png" alt="Synapse dashboard: live journal, pipeline and trace" width="75%">
   <br>
   <sub>The journal: every run shows its plan, live pipeline and trace as it happens.</sub>
 </p>
