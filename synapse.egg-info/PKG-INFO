@@ -1,0 +1,25 @@
+Metadata-Version: 2.4
+Name: synapse
+Version: 0.1.0
+Summary: Personal agentic AI assistant: LangGraph + MCP + Obsidian
+Requires-Python: >=3.11
+Requires-Dist: langgraph<2,>=1.2
+Requires-Dist: mcp<2,>=1.28
+Requires-Dist: httpx>=0.28
+Requires-Dist: pydantic>=2.11
+Requires-Dist: pydantic-settings>=2.6
+Requires-Dist: jsonschema>=4.23
+Requires-Dist: ddgs>=9.0
+Requires-Dist: langgraph-checkpoint-sqlite>=2.0
+Requires-Dist: fastapi>=0.115
+Requires-Dist: uvicorn[standard]>=0.32
+Provides-Extra: crew
+Requires-Dist: crewai>=0.80; extra == "crew"
+Provides-Extra: google
+Requires-Dist: google-api-python-client>=2.150; extra == "google"
+Requires-Dist: google-auth-oauthlib>=1.2; extra == "google"
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.25; extra == "dev"
+Requires-Dist: httpx>=0.28; extra == "dev"
+Requires-Dist: asgi-lifespan>=2.1; extra == "dev"

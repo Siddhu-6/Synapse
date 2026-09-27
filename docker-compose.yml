@@ -1,0 +1,21 @@
+services:
+  synapse:
+    build:
+      context: .
+      args:
+        EXTRAS: ${SYNAPSE_EXTRAS:-google}      # add ",crew" for the CrewAI research crew (large image)
+    # Only localhost can reach it. Put a reverse proxy (Caddy) or a tunnel in front for outside access.
+    ports: ["127.0.0.1:8000:8000"]
+    env_file: .env                            # keys, model, integrations — everything in .env.example
+    environment:
+      # these override .env: paths and the bind address are fixed inside the container
+      SYNAPSE_DATA_DIR: /data
+      SYNAPSE_VAULT_PATH: /vault
+      SYNAPSE_HOST: 0.0.0.0
+      # Ollama stays on the host (no Apple GPU inside containers)
+      SYNAPSE_OLLAMA_URL: ${SYNAPSE_DOCKER_OLLAMA_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./data:/data
+      - ${VAULT_PATH:-./SynapseVault}:/vault
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: unless-stopped

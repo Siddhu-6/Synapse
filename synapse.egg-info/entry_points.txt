@@ -1,0 +1,3 @@
+[console_scripts]
+synapse = synapse.cli:main
+synapse-api = synapse.api:main

@@ -1,0 +1,8 @@
+.venv/
+data/
+SynapseVault/
+web/node_modules/
+web/dist/
+**/__pycache__/
+.git/
+.pytest_cache/

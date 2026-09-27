@@ -1,0 +1,14 @@
+*.db
+*.pyc
+.env
+.pytest_cache/
+.venv/
+SynapseVault/
+__pycache__/
+data/
+synapse/static/
+web/node_modules/
+.ruff_cache/
+.deploy_doc.rendered.html
+.DS_Store
+_to_delete/

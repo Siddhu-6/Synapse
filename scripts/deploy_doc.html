@@ -1,0 +1,892 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Synapse — Setup, Integrations &amp; Deployment Guide</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+
+  :root {
+    --ink: #111315;
+    --body: #2c3035;
+    --muted: #585e65;
+    --rule: #dadddb;
+    --accent: #0a5c92;      /* the accent, text-safe shade */
+    --warn: #ce2c3a;
+    --ok: #0a5c92;
+    --code-bg: #f1f3ef;
+  }
+
+  * { box-sizing: border-box; }
+  html { font-size: 10.3pt; }
+  body { margin: 0; color: var(--body); font-family: "Charter", "Georgia", "Times New Roman", serif; line-height: 1.5; }
+  h1, h2, h3, h4, .ui { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+
+  .cover { height: 247mm; display: flex; flex-direction: column; justify-content: center; }
+  .cover .mark { font-size: 36pt; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); font-family: Georgia, serif; }
+  .cover .mark span { color: #1c74fa; }
+  .cover h1 { font-size: 17pt; font-weight: 600; margin: 4mm 0 0; color: var(--ink); }
+  .cover p.lede { font-size: 11pt; color: var(--muted); max-width: 125mm; margin: 3mm 0 0; }
+  .cover .meta { margin-top: 14mm; border-top: 1.5pt solid var(--ink); padding-top: 3mm;
+                 font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 8.5pt; color: var(--muted); }
+  .cover .meta b { color: var(--ink); font-weight: 600; }
+
+  .page-break { break-before: page; }
+  h2 { font-size: 14pt; color: var(--ink); margin: 0 0 1mm; letter-spacing: -0.01em; }
+  h2 .n { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 3mm; }
+  h2 + .sub { color: var(--muted); font-size: 9.5pt; margin: 0 0 5mm; padding-bottom: 2.5mm; border-bottom: 0.7pt solid var(--rule); }
+  h3 { font-size: 11pt; color: var(--ink); margin: 6mm 0 1.5mm; break-after: avoid; }
+  h4 { font-size: 9pt; color: var(--ink); margin: 4mm 0 1mm; text-transform: uppercase; letter-spacing: 0.06em; break-after: avoid; }
+  p { margin: 0 0 3mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin-bottom: 1.2mm; }
+
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 8.5pt; background: var(--code-bg);
+         padding: 0.3mm 1mm; border-radius: 2px; color: var(--ink); }
+  pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 8.2pt; line-height: 1.5; background: var(--code-bg);
+        border-left: 2pt solid var(--accent); padding: 3mm 4mm; margin: 0 0 4mm; white-space: pre-wrap; word-break: break-word; break-inside: avoid; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  pre .c { color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; margin: 0 0 4mm; font-size: 8.8pt; }
+  tr { break-inside: avoid; }
+  th { text-align: left; font-family: "Helvetica Neue", Helvetica, sans-serif; font-size: 7.8pt; text-transform: uppercase;
+       letter-spacing: 0.06em; color: var(--muted); border-bottom: 1pt solid var(--ink); padding: 0 2.5mm 1.5mm 0; }
+  td { padding: 1.6mm 2.5mm 1.6mm 0; border-bottom: 0.5pt solid var(--rule); vertical-align: top; }
+  td code { font-size: 8pt; }
+  td:last-child, th:last-child { padding-right: 0; }
+
+  .note { border: 0.7pt solid var(--rule); border-left: 2.5pt solid var(--accent); padding: 3mm 4mm; margin: 0 0 4mm; font-size: 9.2pt; break-inside: avoid; }
+  .note.warn { border-left-color: var(--warn); }
+  .note.ok { border-left-color: var(--ok); }
+  .note .t { font-family: "Helvetica Neue", Helvetica, sans-serif; font-weight: 600; font-size: 8.3pt; text-transform: uppercase;
+             letter-spacing: 0.06em; color: var(--accent); display: block; margin-bottom: 1mm; }
+  .note.warn .t { color: var(--warn); }
+  .note.ok .t { color: var(--ok); }
+
+  .check { list-style: none; padding-left: 0; }
+  .check li { padding-left: 6mm; position: relative; }
+  .check li::before { content: "☐"; position: absolute; left: 0; color: var(--muted); }
+
+  .toc { font-size: 10pt; list-style: none; padding-left: 0; }
+  .toc li { margin-bottom: 1.6mm; }
+  .toc .n { font-family: ui-monospace, Menlo, monospace; color: var(--accent); display: inline-block; width: 8mm; }
+  .toc .d { color: var(--muted); font-size: 9pt; }
+
+  /* n8n workflow sketches: the canvas as boxes and arrows */
+  .flow { display: flex; align-items: center; flex-wrap: wrap; gap: 0; margin: 2mm 0 4mm; break-inside: avoid;
+          font-family: "Helvetica Neue", Helvetica, sans-serif; font-size: 8.2pt; }
+  .flow .node { border: 1pt solid var(--ink); border-radius: 3px; padding: 1.6mm 2.6mm; background: #fff; min-width: 26mm; }
+  .flow .node b { display: block; font-size: 8.4pt; color: var(--ink); }
+  .flow .node i { font-style: normal; color: var(--muted); font-size: 7.4pt; }
+  .flow .node.trig { border-color: var(--accent); border-left-width: 3pt; }
+  .flow .node.ext { border-style: dashed; }
+  .flow .arr { color: var(--accent); padding: 0 1.8mm; font-size: 11pt; }
+
+  .kv { display: grid; grid-template-columns: 38mm 1fr; gap: 1mm 3mm; font-size: 9pt; margin: 0 0 4mm; break-inside: avoid; }
+  .kv div:nth-child(odd) { font-family: "Helvetica Neue", Helvetica, sans-serif; color: var(--muted); font-size: 8.3pt; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+</style>
+</head>
+<body>
+
+<!-- ───────────────────────────── cover ───────────────────────────── -->
+<section class="cover">
+  <div class="mark">synapse<span>.</span></div>
+  <h1>Setup, Integrations &amp; Deployment Guide</h1>
+  <p class="lede">Running it with uv, every setting and what to change for production, putting it on GitHub,
+     connecting Gmail, Calendar, Notion, Groq and n8n (WhatsApp, Telegram, Slack), and deploying it — step by step.</p>
+  <div class="meta">
+    <div><b>Version</b> &nbsp;0.2</div>
+    <div><b>Stack</b> &nbsp;LangGraph · MCP · CrewAI · FastAPI · React · Obsidian</div>
+    <div><b>Platforms</b> &nbsp;macOS (primary) · Linux · Docker</div>
+    <div><b>Generated</b> &nbsp;__DATE__</div>
+  </div>
+</section>
+
+<!-- ───────────────────────────── contents ───────────────────────────── -->
+<section class="page-break">
+  <h2>Contents</h2>
+  <div class="sub">1–4 get it running. 5 puts it on GitHub. 6–9 connect your apps. 10–14 deploy and operate it.</div>
+  <ol class="toc">
+    <li><span class="n">1</span>What you need <span class="d">— tools, hardware, the one decision that matters</span></li>
+    <li><span class="n">2</span>Run it with uv <span class="d">— first run, then daily use</span></li>
+    <li><span class="n">3</span>Configuration reference <span class="d">— every variable, dev vs production, what to replace</span></li>
+    <li><span class="n">4</span>Verify it <span class="d">— doctor, tests, evals, browser checks</span></li>
+    <li><span class="n">5</span>Put it on GitHub <span class="d">— first push, CI, keeping secrets out</span></li>
+    <li><span class="n">6</span>Fast model (Groq) <span class="d">— the biggest speed upgrade, free</span></li>
+    <li><span class="n">7</span>Gmail &amp; Google Calendar</li>
+    <li><span class="n">8</span>Notion</li>
+    <li><span class="n">9</span>n8n: WhatsApp, Telegram, Slack, Sheets <span class="d">— concepts, securing, five workflow recipes, inbound auto-reply</span></li>
+    <li><span class="n">10</span>Deployment <span class="d">— always-on Mac, Docker, VPS, tunnels</span></li>
+    <li><span class="n">11</span>Pre-launch checklist</li>
+    <li><span class="n">12</span>Operating it <span class="d">— backups, upgrades, rollback, what to watch</span></li>
+    <li><span class="n">13</span>Troubleshooting</li>
+    <li><span class="n">14</span>Changing it yourself</li>
+  </ol>
+
+  <div class="note">
+    <span class="t">The one thing to know first</span>
+    By default Synapse runs entirely on your machine with a local model (Ollama). That is private and free, but
+    a local 7B model takes roughly 30–70 seconds to plan a task. A free Groq key (section 6) brings that to
+    2–5 seconds <em>and</em> plans better, with the local model kept as an automatic fallback. If you do one
+    optional thing, do that one.
+  </div>
+
+  <h3>Conventions in this guide</h3>
+  <ul>
+    <li>Commands are for the macOS Terminal (zsh). Paste <strong>one line at a time</strong>; lines starting with
+        <code>#</code> are comments.</li>
+    <li><code>~/Desktop/synapse</code> is the project folder. Replace it if yours is elsewhere.</li>
+    <li>Anything in <code>&lt;angle brackets&gt;</code> is a placeholder you must replace, brackets included.</li>
+  </ul>
+</section>
+
+<!-- ───────────────────────────── 1 ───────────────────────────── -->
+<section class="page-break">
+  <h2><span class="n">1</span>What you need</h2>
+  <div class="sub">Install these once.</div>
+
+  <table>
+    <tr><th style="width:32mm">Tool</th><th style="width:40mm">Why</th><th>Install (macOS)</th></tr>
+    <tr><td>Homebrew</td><td>Installs everything below</td><td><code>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</code></td></tr>
+    <tr><td>uv</td><td>Python, environments, packages</td><td><code>brew install uv</code></td></tr>
+    <tr><td>Node 20+</td><td>Builds the dashboard</td><td><code>brew install node</code></td></tr>
+    <tr><td>Ollama</td><td>Local model server</td><td><code>brew install ollama</code></td></tr>
+    <tr><td>git</td><td>Version control, GitHub</td><td><code>xcode-select --install</code> (or <code>brew install git</code>)</td></tr>
+    <tr><td>GitHub CLI <em>(optional)</em></td><td>One-command repo creation</td><td><code>brew install gh</code></td></tr>
+    <tr><td>Obsidian <em>(optional)</em></td><td>To browse the vault</td><td><code>brew install --cask obsidian</code></td></tr>
+  </table>
+  <p>You do <strong>not</strong> need to install Python yourself: uv downloads the right version (3.12) for the project.</p>
+
+  <h3>Hardware</h3>
+  <p>16 GB RAM (your MacBook Air M4) runs a 7B model comfortably; 8 GB works but swaps. Apple Silicon uses the
+     GPU automatically. Disk: about 6 GB for models, plus your vault.</p>
+
+  <div class="note warn">
+    <span class="t">Never run Ollama on a cloud VM</span>
+    Cloud CPUs manage a few tokens per second, which makes the assistant unusable. Anywhere other than your own
+    Mac, use a hosted model (sections 3 and 6).
+  </div>
+</section>
+
+<!-- ───────────────────────────── 2 ───────────────────────────── -->
+<section class="page-break">
+  <h2><span class="n">2</span>Run it with uv</h2>
+  <div class="sub">First run takes about 10 minutes, mostly downloads. After that it is two commands.</div>
+
+  <h3>2.1 &nbsp;Start the model server</h3>
+  <p>Terminal 1 — leave it running (or run <code>brew services start ollama</code> once and it starts at login):</p>
+<pre><code>ollama serve</code></pre>
+  <p>Terminal 2 — download the models:</p>
+<pre><code>ollama pull qwen2.5:7b-instruct   <span class="c"># planner/writer, ~4.7 GB</span>
+ollama pull nomic-embed-text      <span class="c"># memory search, ~270 MB, optional</span></code></pre>
+
+  <h3>2.2 &nbsp;Install the project</h3>
+<pre><code>cd ~/Desktop/synapse
+uv sync --extra dev --extra google</code></pre>
+  <p><code>uv sync</code> downloads Python 3.12 if needed, creates <code>.venv/</code>, and installs exactly the
+     versions pinned in <code>uv.lock</code>. The extras: <code>dev</code> = tests, <code>google</code> = Gmail and
+     Calendar, <code>crew</code> = the CrewAI research crew (large; add <code>--extra crew</code> if you want it).</p>
+
+  <h3>2.3 &nbsp;Create your settings file</h3>
+<pre><code>cp .env.example .env
+open -e .env</code></pre>
+  <p>At minimum set <code>SYNAPSE_VAULT_PATH</code> to the absolute path of your Obsidian vault
+     (e.g. <code>/Users/&lt;you&gt;/Documents/MyVault</code>). Section 3 explains every other line.</p>
+
+  <h3>2.4 &nbsp;Build the dashboard</h3>
+<pre><code>cd web
+npm install
+npm run build
+cd ..</code></pre>
+  <p>Repeat only when you change something under <code>web/src</code>. For UI work, <code>npm run dev</code> in
+     <code>web/</code> serves on port 5173 with hot reload.</p>
+
+  <h3>2.5 &nbsp;Check and start</h3>
+<pre><code>uv run synapse doctor
+uv run synapse-api</code></pre>
+  <p>Open <strong>http://127.0.0.1:8000</strong>. <code>doctor</code> checks Ollama, the model, every MCP server,
+     Google, and prints the vault path it will really use — compare it with Obsidian.</p>
+
+  <div class="note ok">
+    <span class="t">Daily use</span>
+    <code>cd ~/Desktop/synapse</code> then <code>uv run synapse-api</code> (with Ollama running). That is all.
+    <code>uv run</code> always uses the project's own environment — no <code>source .venv/bin/activate</code> needed.
+    Section 10.1 makes even this automatic.
+  </div>
+
+  <h3>2.6 &nbsp;Useful uv commands</h3>
+  <table>
+    <tr><th style="width:62mm">Command</th><th>What it does</th></tr>
+    <tr><td><code>uv run synapse run "&lt;goal&gt;"</code></td><td>Run one goal in the terminal; approvals are asked there</td></tr>
+    <tr><td><code>uv run pytest -q</code></td><td>Test suite</td></tr>
+    <tr><td><code>uv run python -m evals.run</code></td><td>Behaviour evaluations</td></tr>
+    <tr><td><code>uv sync --extra dev --extra google</code></td><td>Re-install after pulling changes</td></tr>
+    <tr><td><code>uv add &lt;package&gt;</code></td><td>Add a dependency (updates pyproject and uv.lock)</td></tr>
+    <tr><td><code>uv lock --upgrade</code></td><td>Upgrade all pinned versions (then re-test)</td></tr>
+    <tr><td><code>rm -rf .venv &amp;&amp; uv sync …</code></td><td>Rebuild a broken environment from scratch</td></tr>
+  </table>
+</section>
+
+<!-- ───────────────────────────── 3 ───────────────────────────── -->
+<section class="page-break">
+  <h2><span class="n">3</span>Configuration reference</h2>
+  <div class="sub">Every variable in <code>.env</code>: what it does, a good development value, and what to use in production.</div>
+
+  <h3>3.1 &nbsp;What you must replace</h3>
+  <table>
+    <tr><th style="width:52mm">Placeholder in the example</th><th>Replace with</th></tr>
+    <tr><td><code>SYNAPSE_VAULT_PATH=./SynapseVault</code></td><td>The absolute path of the folder Obsidian has open. Wrong path = notes you never see.</td></tr>
+    <tr><td><code># SYNAPSE_API_TOKEN=</code></td><td>Uncomment and set to the output of <code>openssl rand -hex 32</code> before anything but your Mac can reach the port.</td></tr>
+    <tr><td><code>SYNAPSE_FAST_API_KEY=</code></td><td>Your Groq key (section 6).</td></tr>
+    <tr><td><code>ntn_...</code></td><td>Your Notion integration secret (section 8).</td></tr>
+    <tr><td><code>https://your-n8n/webhook/abc</code></td><td>The <em>production</em> URL of each n8n Webhook node (section 9). Remove examples you do not use.</td></tr>
+    <tr><td><code># SYNAPSE_N8N_SECRET=</code></td><td><code>openssl rand -hex 24</code>, and the same value in n8n's Header Auth credential.</td></tr>
+  </table>
+
+  <h3>3.2 &nbsp;Model</h3>
+  <table>
+    <tr><th style="width:44mm">Variable</th><th style="width:26mm">Default</th><th>Meaning · production advice</th></tr>
+    <tr><td><code>SYNAPSE_LLM_PROVIDER</code></td><td>ollama</td><td>Main model backend. On your Mac keep <code>ollama</code> and add the fast provider. On a VPS (no Ollama) set <code>openai</code> and fill the two lines below.</td></tr>
+    <tr><td><code>SYNAPSE_MODEL</code></td><td>qwen2.5:7b-instruct</td><td>Main model name. With <code>openai</code> provider on Groq: <code>llama-3.3-70b-versatile</code>.</td></tr>
+    <tr><td><code>SYNAPSE_OPENAI_BASE_URL</code><br><code>SYNAPSE_OPENAI_API_KEY</code></td><td>Groq URL / unset</td><td>Only read when the provider is <code>openai</code>. Any OpenAI-compatible endpoint works (Groq, Cerebras, OpenRouter, OpenAI).</td></tr>
+    <tr><td><code>SYNAPSE_EMBED_MODEL</code></td><td>nomic-embed-text</td><td>Ollama embedding model for memory search. Without Ollama, memory falls back to keyword search — fine.</td></tr>
+    <tr><td><code>SYNAPSE_OLLAMA_URL</code></td><td>localhost:11434</td><td>Docker overrides it to <code>host.docker.internal</code> automatically.</td></tr>
+    <tr><td><code>SYNAPSE_LLM_TIMEOUT</code></td><td>180</td><td>Seconds per model call. Local: 180. Hosted: 60, so a stuck call fails fast and falls back.</td></tr>
+    <tr><td><code>SYNAPSE_FAST_BASE_URL</code><br><code>SYNAPSE_FAST_MODEL</code><br><code>SYNAPSE_FAST_API_KEY</code></td><td>unset</td><td><strong>Recommended everywhere.</strong> Used for planning, writing and answering; local Ollama is the automatic fallback when the quota runs out.</td></tr>
+    <tr><td><code>SYNAPSE_NUM_CTX</code></td><td>8192</td><td>Ollama context window. Raise to 16384 only if long notes get cut; it slows every call.</td></tr>
+    <tr><td><code>SYNAPSE_KEEP_ALIVE</code></td><td>30m</td><td>How long Ollama keeps the model loaded. <code>24h</code> on an always-on Mac avoids reload pauses.</td></tr>
+    <tr><td><code>SYNAPSE_PLAN_MAX_TOKENS</code></td><td>700</td><td>Plan length cap. Leave.</td></tr>
+    <tr><td><code>SYNAPSE_GEN_MAX_TOKENS</code></td><td>1200</td><td>Longest answer or note. Raise to 2000 for long reports.</td></tr>
+  </table>
+
+</section>
+
+<section class="page-break">
+  <h3>3.3 &nbsp;Paths</h3>
+  <table>
+    <tr><th style="width:44mm">Variable</th><th style="width:26mm">Default</th><th>Meaning · production advice</th></tr>
+    <tr><td><code>SYNAPSE_VAULT_PATH</code></td><td>./SynapseVault</td><td>Absolute path, always. In Docker it is fixed to <code>/vault</code>; set the host folder with <code>VAULT_PATH=</code> instead.</td></tr>
+    <tr><td><code>SYNAPSE_DATA_DIR</code></td><td>./data</td><td>All state: runs, traces, memory, schedules, checkpoints and the Google token. Absolute path in production, and back it up (section 12).</td></tr>
+  </table>
+
+  <h3>3.4 &nbsp;Budgets and guard rails</h3>
+  <table>
+    <tr><th style="width:44mm">Variable</th><th style="width:16mm">Default</th><th>Meaning · production advice</th></tr>
+    <tr><td><code>SYNAPSE_TOOL_TIMEOUT</code></td><td>30</td><td>Seconds before a tool call is abandoned (read-only tools are retried once). 45 if research often times out.</td></tr>
+    <tr><td><code>SYNAPSE_MAX_STEPS</code></td><td>6</td><td>Longest plan. 6–8 is right; longer plans are slower and more fragile, not smarter.</td></tr>
+    <tr><td><code>SYNAPSE_MAX_REPLANS</code></td><td>1</td><td>Re-plans after a failed step. Keep 1: a second replan rarely succeeds where the first failed.</td></tr>
+    <tr><td><code>SYNAPSE_MAX_LLM_CALLS</code></td><td>20</td><td>Hard per-run budget; the loop guard. With a paid provider this is also your cost ceiling per request.</td></tr>
+    <tr><td><code>SYNAPSE_PARALLEL_STEPS</code></td><td>2</td><td>Independent read-only steps run together. 3 on a hosted model; keep 2 on local Ollama.</td></tr>
+    <tr><td><code>SYNAPSE_CREW_TIMEOUT</code></td><td>420</td><td>Seconds for a CrewAI research report. 600 local, 300 hosted.</td></tr>
+  </table>
+
+  <h3>3.5 &nbsp;Features</h3>
+  <table>
+    <tr><th style="width:44mm">Variable</th><th style="width:16mm">Default</th><th>Meaning · production advice</th></tr>
+    <tr><td><code>SYNAPSE_ENABLE_CREW</code></td><td>true</td><td>Needs the <code>crew</code> extra. Set <code>false</code> on a small VPS (large install, slow).</td></tr>
+    <tr><td><code>SYNAPSE_CREW_CRITIC</code></td><td>false</td><td>Adds a critic agent to the crew; roughly doubles its time.</td></tr>
+    <tr><td><code>SYNAPSE_ENABLE_WEB</code></td><td>true</td><td>Web search and page fetch. Keep on.</td></tr>
+    <tr><td><code>SYNAPSE_ENABLE_SCHEDULER</code></td><td>true</td><td>Runs scheduled goals — only while the API is running.</td></tr>
+    <tr><td><code>SYNAPSE_SCHEDULER_INTERVAL</code></td><td>30</td><td>Seconds between schedule checks. Leave.</td></tr>
+  </table>
+
+  <h3>3.6 &nbsp;API and security</h3>
+  <table>
+    <tr><th style="width:44mm">Variable</th><th style="width:16mm">Default</th><th>Meaning · production advice</th></tr>
+    <tr><td><code>SYNAPSE_HOST</code></td><td>127.0.0.1</td><td><strong>Keep 127.0.0.1.</strong> Reach it from outside through a tunnel or reverse proxy, never by binding 0.0.0.0 on a public machine. (Docker sets 0.0.0.0 inside the container but publishes only to 127.0.0.1.)</td></tr>
+    <tr><td><code>SYNAPSE_PORT</code></td><td>8000</td><td>Change only if 8000 is taken.</td></tr>
+    <tr><td><code>SYNAPSE_API_TOKEN</code></td><td>unset</td><td><strong>Required before exposure.</strong> Without it every route is open — including the ones that send email. The dashboard asks for it once and keeps it in the browser.</td></tr>
+  </table>
+
+  <h3>3.7 &nbsp;Integrations</h3>
+  <table>
+    <tr><th style="width:44mm">Variable</th><th style="width:16mm">Default</th><th>Meaning · production advice</th></tr>
+    <tr><td><code>SYNAPSE_NOTION_TOKEN</code></td><td>unset</td><td>Enables the Notion tools (section 8).</td></tr>
+    <tr><td><code>SYNAPSE_N8N_WEBHOOKS</code></td><td>unset</td><td><code>name=url</code> pairs, comma-separated, no spaces. An <em>allowlist</em>: Synapse can call only these. Use production URLs (<code>/webhook/</code>, not <code>/webhook-test/</code>) over https.</td></tr>
+    <tr><td><code>SYNAPSE_N8N_SECRET</code></td><td>unset</td><td>Sent as header <code>X-Synapse-Secret</code> on every call so n8n can reject anyone else who finds the URL.</td></tr>
+  </table>
+
+  <div class="note warn">
+    <span class="t">Secrets</span>
+    <code>.env</code> and <code>data/</code> (which holds <code>google_token.json</code>) are git-ignored — keep it that
+    way. On a server, set them as environment variables or a root-only <code>.env</code> (<code>chmod 600 .env</code>).
+    If a key ever lands in a commit, <strong>rotate it</strong> at the provider; deleting the file is not enough.
+  </div>
+
+  <h3>3.8 &nbsp;A production <code>.env</code> for your Mac</h3>
+<pre><code>SYNAPSE_LLM_PROVIDER=ollama
+SYNAPSE_MODEL=qwen2.5:7b-instruct
+SYNAPSE_KEEP_ALIVE=24h
+SYNAPSE_FAST_BASE_URL=https://api.groq.com/openai/v1
+SYNAPSE_FAST_MODEL=llama-3.3-70b-versatile
+SYNAPSE_FAST_API_KEY=&lt;gsk_...&gt;
+SYNAPSE_VAULT_PATH=/Users/&lt;you&gt;/Documents/&lt;YourVault&gt;
+SYNAPSE_DATA_DIR=/Users/&lt;you&gt;/Desktop/synapse/data
+SYNAPSE_MAX_STEPS=8
+SYNAPSE_API_TOKEN=&lt;output of openssl rand -hex 32&gt;
+SYNAPSE_N8N_WEBHOOKS=telegram=https://&lt;n8n-host&gt;/webhook/&lt;id1&gt;,whatsapp=https://&lt;n8n-host&gt;/webhook/&lt;id2&gt;
+SYNAPSE_N8N_SECRET=&lt;output of openssl rand -hex 24&gt;</code></pre>
+  <p>On a VPS the only differences: <code>SYNAPSE_LLM_PROVIDER=openai</code>, <code>SYNAPSE_MODEL=llama-3.3-70b-versatile</code>,
+     <code>SYNAPSE_OPENAI_API_KEY=&lt;gsk_...&gt;</code>, <code>SYNAPSE_ENABLE_CREW=false</code>, and no Ollama lines.</p>
+</section>
+
+<!-- ───────────────────────────── 4 ───────────────────────────── -->
+<section class="page-break">
+  <h2><span class="n">4</span>Verify it</h2>
+  <div class="sub">Run these after install and after every change you make.</div>
+<pre><code>uv run synapse doctor          <span class="c"># Ollama, model, MCP servers, Google, vault path</span>
+uv run pytest -q               <span class="c"># ~50 tests: runtime, tools, API — real graph and MCP, scripted model</span>
+uv run python -m evals.run     <span class="c"># 16 behaviour scenarios; report shown in the Evals tab</span>
+uv run ruff check synapse evals tests</code></pre>
+  <h4>Browser checks (optional)</h4>
+  <p>Loads the built dashboard in real Chromium and checks console errors, labels, keyboard use, layout at phone
+     width and responsiveness. Start the API first, then in another terminal:</p>
+<pre><code>uv pip install playwright
+uv run playwright install chromium
+uv run python scripts/browser_check.py</code></pre>
+
+  <h4>First real test</h4>
+  <ol>
+    <li>Type <em>Hi</em> — it should answer in a few seconds with no plan.</li>
+    <li>Type <em>Build a study roadmap for AI engineering and save it to my vault</em> — open “Show working”, watch the
+        plan run, then find the note in Obsidian.</li>
+    <li>Type <em>Delete the note &lt;name&gt;</em> — it must stop and ask for your signature before anything happens.</li>
+  </ol>
+</section>
+
+<!-- ───────────────────────────── 5 ───────────────────────────── -->
+<section class="page-break">
+  <h2><span class="n">5</span>Put it on GitHub</h2>
+  <div class="sub">Your portfolio copy. CI runs the tests and evals on every push.</div>
+
+  <h3>5.1 &nbsp;One-time git setup</h3>
+<pre><code>git config --global user.name "&lt;Your Name&gt;"
+git config --global user.email "&lt;the email on your GitHub account&gt;"</code></pre>
+
+  <h3>5.2 &nbsp;Check nothing secret will be committed</h3>
+  <p><code>.gitignore</code> already excludes <code>.env</code>, <code>data/</code>, <code>SynapseVault/</code>,
+     <code>.venv/</code>, <code>web/node_modules/</code> and the built dashboard. Confirm before the first commit:</p>
+<pre><code>cd ~/Desktop/synapse
+git init -b main
+git add .
+git status</code></pre>
+  <p>In the list, <code>.env</code>, <code>data/</code> and <code>google_credentials.json</code> must <strong>not</strong>
+     appear. If one does, stop and add it to <code>.gitignore</code>, then <code>git rm --cached &lt;file&gt;</code>.</p>
+<pre><code>git commit -m "Synapse: agentic assistant (LangGraph, MCP, CrewAI)"</code></pre>
+
+  <h3>5.3 &nbsp;Create the repository and push</h3>
+  <h4>Option A — GitHub CLI (easiest)</h4>
+<pre><code>gh auth login                         <span class="c"># choose GitHub.com, HTTPS, log in with browser</span>
+gh repo create synapse --public --source=. --push</code></pre>
+  <h4>Option B — website</h4>
+  <ol>
+    <li>github.com → <strong>New repository</strong> → name <code>synapse</code>. Do <em>not</em> tick “Add a README”,
+        .gitignore or licence (they would conflict with your first push).</li>
+    <li>Copy the HTTPS URL, then:</li>
+  </ol>
+<pre><code>git remote add origin https://github.com/&lt;your-username&gt;/synapse.git
+git push -u origin main</code></pre>
+  <p>When asked for a password, use a <strong>personal access token</strong> (GitHub → Settings → Developer settings →
+     Personal access tokens → Fine-grained → repository access: synapse, Contents: read and write), not your account password.</p>
+
+  <h3>5.4 &nbsp;CI</h3>
+  <p><code>.github/workflows/ci.yml</code> runs automatically on every push to <code>main</code> and on pull requests:
+     lint, the test suite, the evaluation suite (report uploaded as an artifact), the dashboard build and a Docker
+     build. Watch it under the repository's <strong>Actions</strong> tab. No secrets are needed — tests script the model.</p>
+  <p>Add the status badge to the top of <code>README.md</code>:</p>
+<pre><code>![CI](https://github.com/&lt;your-username&gt;/synapse/actions/workflows/ci.yml/badge.svg)</code></pre>
+
+  <h3>5.5 &nbsp;Everyday workflow</h3>
+<pre><code>git checkout -b feature/&lt;short-name&gt;
+<span class="c"># ...edit, then run section 4...</span>
+git add -A
+git commit -m "&lt;what changed and why&gt;"
+git push -u origin feature/&lt;short-name&gt;
+gh pr create --fill                   <span class="c"># or open the PR on github.com; merge when CI is green</span></code></pre>
+
+  <h3>5.6 &nbsp;Making it portfolio-ready</h3>
+  <ul class="check">
+    <li>Repository description and topics: <code>langgraph</code>, <code>mcp</code>, <code>crewai</code>, <code>agents</code>, <code>llmops</code>, <code>obsidian</code></li>
+    <li>A screenshot or short GIF of a run at the top of the README (Journal with “Show working” open, and the Agents view)</li>
+    <li>A <code>LICENSE</code> file (MIT is usual): GitHub → Add file → Create new file → name it LICENSE → choose a template</li>
+    <li>Pin the repository on your profile</li>
+    <li>Search the history once for leaked keys: <code>git log -p | grep -iE "gsk_|ntn_|api_key|secret"</code></li>
+  </ul>
+
+  <div class="note warn">
+    <span class="t">If you ever push a secret</span>
+    Revoke it at the provider immediately (Groq, Notion, Google Cloud), then generate a new one. The old value
+    stays in git history even after you delete the file, and public repositories are scanned by bots within minutes.
+  </div>
+</section>
+
+<!-- ───────────────────────────── 6 ───────────────────────────── -->
+<section class="page-break">
+  <h2><span class="n">6</span>Fast model (Groq)</h2>
+  <div class="sub">Free tier, OpenAI-compatible, 10–30× faster than a local 7B model.</div>
+  <ol>
+    <li>Go to <strong>console.groq.com</strong> → sign in → <strong>API Keys</strong> → <em>Create API Key</em>. Copy it (starts with <code>gsk_</code>).</li>
+    <li>In <code>.env</code>:
+<pre><code>SYNAPSE_FAST_BASE_URL=https://api.groq.com/openai/v1
+SYNAPSE_FAST_MODEL=llama-3.3-70b-versatile
+SYNAPSE_FAST_API_KEY=&lt;gsk_...&gt;</code></pre></li>
+    <li>Restart the API. The sidebar footer changes from <em>local</em> to <em>fast + local</em>.</li>
+  </ol>
+  <p>Free tiers have per-minute and per-day limits. When Groq refuses a call, Synapse falls back to Ollama for that
+     call, so a heavy day gets slower rather than broken. Cerebras (<code>https://api.cerebras.ai/v1</code>,
+     model <code>llama-3.3-70b</code>) works the same way if you want a second option.</p>
+  <div class="note">
+    <span class="t">Privacy trade-off</span>
+    With a fast provider, your prompts — including note excerpts used for the task — go to that provider.
+    Leave the three lines unset for fully local operation.
+  </div>
+
+<!-- ───────────────────────────── 7 ───────────────────────────── -->
+  <h2 style="margin-top:9mm"><span class="n">7</span>Gmail &amp; Google Calendar</h2>
+  <div class="sub">About 15 minutes, once. Sending and event creation always ask for your approval.</div>
+  <ol>
+    <li><strong>console.cloud.google.com</strong> → project selector → <em>New project</em> → name it <code>synapse</code> → Create.</li>
+    <li><strong>APIs &amp; Services → Library</strong>: enable <em>Gmail API</em>, then <em>Google Calendar API</em>.</li>
+    <li><strong>OAuth consent screen</strong> (Google Auth Platform → Branding/Audience): User type <em>External</em>;
+        app name <code>Synapse</code>; your email as support and developer contact. Under <em>Audience → Test users</em>
+        add your own Gmail address. Leave the app in <em>Testing</em>.</li>
+    <li><strong>Credentials → Create credentials → OAuth client ID</strong> → Application type <em>Desktop app</em> →
+        Create → <em>Download JSON</em>.</li>
+    <li>Move it into the project:
+<pre><code>mv ~/Downloads/client_secret_*.json ~/Desktop/synapse/data/google_credentials.json</code></pre></li>
+    <li>Authorise (a browser tab opens; choose your account; on “Google hasn't verified this app” click
+        <em>Continue</em> — it is your own app):
+<pre><code>uv run python -m synapse.integrations.google_auth</code></pre></li>
+    <li>Restart the API. <code>uv run synapse doctor</code> should print <em>Google: connected</em> and the Tools tab
+        lists <code>gmail_send</code>, <code>gmail_search</code>, <code>calendar_create_event</code>…</li>
+  </ol>
+  <div class="note warn">
+    <span class="t">Testing-mode tokens expire after 7 days</span>
+    If Gmail tools start failing with an auth error, re-run step 6. To stop the weekly expiry you would need to publish
+    the app, which requires Google verification for Gmail scopes — not worth it for personal use.
+  </div>
+  <p>Emails are sent as plain text plus clean HTML (tables and lists render properly), never with attachments; the
+     content is written into the body before you approve. Bodies containing placeholder text are refused and the run
+     re-plans to fetch real data.</p>
+</section>
+
+<!-- ───────────────────────────── 8 ───────────────────────────── -->
+<section class="page-break">
+  <h2><span class="n">8</span>Notion</h2>
+  <div class="sub">Five minutes. Synapse can only see pages you explicitly share with it.</div>
+  <ol>
+    <li>Open <strong>notion.so/profile/integrations</strong> (older link: notion.so/my-integrations) → <em>New integration</em>.</li>
+    <li>Name <code>Synapse</code>, pick your workspace, type <em>Internal</em> → Save.</li>
+    <li>Capabilities: Read content, Update content, Insert content. Copy the <strong>Internal Integration Secret</strong>
+        (starts with <code>ntn_</code>).</li>
+    <li><code>.env</code>: <code>SYNAPSE_NOTION_TOKEN=&lt;ntn_...&gt;</code> and restart.</li>
+    <li>In Notion, open each page or database Synapse should use → <strong>⋯ (top right) → Connections → Synapse</strong>.
+        Sharing a parent page shares everything under it.</li>
+  </ol>
+  <p>Try: <em>“Add a row to my Reading List database: Designing Data-Intensive Applications, status To read”</em>.
+     Anything not shared returns “not found”, and Synapse says so rather than guessing.</p>
+
+<!-- ───────────────────────────── 9 ───────────────────────────── -->
+  <h2 style="margin-top:9mm"><span class="n">9</span>n8n: WhatsApp, Telegram, Slack, Sheets</h2>
+  <div class="sub">n8n is the bridge to every service Synapse has no built-in tool for.</div>
+
+  <h3>9.1 &nbsp;How it fits together</h3>
+  <p>An n8n <strong>workflow</strong> is a graph of <strong>nodes</strong> on a canvas, joined left to right. The
+     first node is a <em>trigger</em>; each following node receives the previous node's JSON output. Synapse talks to
+     n8n in two directions:</p>
+  <div class="flow"><div class="node ext"><b>Synapse</b><i>run_workflow("telegram", {to, message})</i></div><span class="arr">→</span>
+    <div class="node trig"><b>Webhook</b><i>POST /webhook/&lt;id&gt;</i></div><span class="arr">→</span>
+    <div class="node"><b>Telegram / WhatsApp / Slack</b><i>send the message</i></div></div>
+  <div class="flow"><div class="node trig"><b>WhatsApp Trigger</b><i>someone messages you</i></div><span class="arr">→</span>
+    <div class="node"><b>HTTP Request</b><i>POST /api/messages</i></div><span class="arr">→</span>
+    <div class="node ext"><b>Synapse</b><i>reply, or notify you</i></div></div>
+  <p><strong>Outbound:</strong> Synapse calls <code>run_workflow(name, payload)</code>. The name must be registered in
+     <code>SYNAPSE_N8N_WEBHOOKS</code>; the payload is always <code>{"to": "…", "message": "…"}</code> (plus
+     <code>"subject"</code> when relevant). <strong>Inbound:</strong> n8n forwards a received message to Synapse's
+     <code>/api/messages</code> endpoint.</p>
+
+  <h4>Three n8n facts that trip everyone up</h4>
+  <ol>
+    <li><strong>Test URL vs production URL.</strong> Every Webhook node has two. The <em>test</em> URL
+        (<code>/webhook-test/…</code>) works only while you have clicked <em>Listen for test event</em>. The
+        <em>production</em> URL (<code>/webhook/…</code>) works only when the workflow is <strong>Active</strong>
+        (toggle at the top; newer versions call it <em>Publish</em>). Register the production URL.</li>
+    <li><strong>The POST body is under <code>body</code>.</strong> In later nodes the message is
+        <code>{{ $json.body.message }}</code>, not <code>{{ $json.message }}</code>.</li>
+    <li><strong>n8n must be able to reach Synapse</strong> for inbound flows (and vice versa for outbound). n8n Cloud
+        cannot reach <code>localhost</code> on your Mac — use a tunnel (section 10.4).</li>
+  </ol>
+</section>
+
+<section class="page-break">
+  <h3>9.2 &nbsp;Get n8n</h3>
+  <table>
+    <tr><th style="width:40mm">Option</th><th>How</th><th style="width:48mm">Good for</th></tr>
+    <tr><td>n8n Cloud</td><td>Sign up at n8n.io (trial, then paid). Public HTTPS out of the box.</td><td>WhatsApp/Telegram triggers with no tunnel</td></tr>
+    <tr><td>On your Mac (npx)</td><td><code>npx n8n</code> → open http://localhost:5678</td><td>Trying it; outbound only unless tunnelled</td></tr>
+    <tr><td>On your Mac (Docker)</td><td><code>docker run -it --rm -p 5678:5678 -v n8n_data:/home/node/.n8n docker.n8n.io/n8nio/n8n</code></td><td>Same, persistent</td></tr>
+    <tr><td>Your VPS</td><td>n8n's Docker Compose + Caddy recipe (docs.n8n.io → Hosting)</td><td>Always-on, public triggers</td></tr>
+  </table>
+  <p>For triggers from WhatsApp or Telegram, n8n needs a public HTTPS URL. Self-hosted on your Mac, start n8n with
+     <code>WEBHOOK_URL=https://&lt;your-tunnel-host&gt;/</code> so the URLs it shows are the public ones.</p>
+
+  <h3>9.3 &nbsp;Secure every Synapse webhook</h3>
+  <ol>
+    <li>Generate a secret: <code>openssl rand -hex 24</code>. Put it in <code>.env</code> as <code>SYNAPSE_N8N_SECRET</code>.</li>
+    <li>In n8n: <strong>Credentials → New → Header Auth</strong>. Name: <code>X-Synapse-Secret</code>. Value: the secret.
+        Save as “Synapse secret”.</li>
+    <li>In every Webhook node below: <strong>Authentication → Header Auth → Synapse secret</strong>.</li>
+  </ol>
+  <p>Now a request without the header gets 403 from n8n, even if someone learns the URL.</p>
+
+  <h3>9.4 &nbsp;Recipe: Telegram messages (start here — free and easy)</h3>
+  <div class="flow"><div class="node trig"><b>Webhook</b><i>POST · Header Auth</i></div><span class="arr">→</span>
+    <div class="node"><b>Telegram</b><i>Send Message</i></div></div>
+  <ol>
+    <li>In Telegram, message <strong>@BotFather</strong> → <code>/newbot</code> → name it → copy the bot token.</li>
+    <li>Send your new bot any message. Then find your chat id: open
+        <code>https://api.telegram.org/bot&lt;token&gt;/getUpdates</code> in a browser and copy <code>message.chat.id</code>.</li>
+    <li>n8n → <strong>New workflow</strong> → name it “Synapse → Telegram”.</li>
+    <li>Add node <strong>Webhook</strong>: HTTP Method <code>POST</code>; Path <code>synapse-telegram</code>;
+        Authentication <em>Header Auth</em>; Respond <em>When Last Node Finishes</em> (so Synapse sees failures).</li>
+    <li>Click <strong>+</strong> after it → <strong>Telegram → Send a text message</strong>. Credential: paste the bot token.
+        Chat ID: your chat id (or <code>{{ $json.body.to }}</code> to let Synapse choose). Text:
+        <code>{{ $json.body.message }}</code>.</li>
+    <li>Save → <strong>Activate</strong>. Copy the Webhook node's <em>Production URL</em>.</li>
+    <li><code>.env</code>: <code>SYNAPSE_N8N_WEBHOOKS=telegram=&lt;production URL&gt;</code> → restart Synapse.</li>
+  </ol>
+  <p>Test it without Synapse first (use the secret you generated):</p>
+<pre><code>curl -X POST "&lt;production URL&gt;" -H "Content-Type: application/json" \
+  -H "X-Synapse-Secret: &lt;secret&gt;" -d '{"to":"me","message":"hello from n8n"}'</code></pre>
+  <p>Then in Synapse: <em>“Send me a Telegram message with my open tasks”</em>. It plans <code>list_tasks</code> →
+     write → <code>run_workflow</code>, and asks for your signature before sending.</p>
+
+  <h3>9.5 &nbsp;Recipe: WhatsApp (outbound)</h3>
+  <div class="flow"><div class="node trig"><b>Webhook</b><i>POST · Header Auth</i></div><span class="arr">→</span>
+    <div class="node"><b>WhatsApp Business Cloud</b><i>Send message</i></div></div>
+  <ol>
+    <li><strong>developers.facebook.com</strong> → My Apps → <em>Create app</em> → use case “Connect with customers
+        through WhatsApp” (type <em>Business</em>) → add the <strong>WhatsApp</strong> product.</li>
+    <li>WhatsApp → <strong>API Setup</strong>: note the <em>Phone number ID</em> of the free test number, and add your
+        own phone under <em>To</em> as an allowed recipient (verify the code sent to you).</li>
+    <li>Create a long-lived token: Business Settings → <strong>System users</strong> → add one → <em>Generate token</em>
+        with <code>whatsapp_business_messaging</code> and <code>whatsapp_business_management</code>.</li>
+    <li>n8n: Webhook node exactly as in 9.4 (path <code>synapse-whatsapp</code>) → <strong>WhatsApp Business Cloud →
+        Send message</strong>. Credential: access token + business account ID. Sender phone number ID: from step 2.
+        Recipient: <code>{{ $json.body.to }}</code> (international format, digits only, e.g. <code>91XXXXXXXXXX</code>).
+        Message type <em>Text</em>, body <code>{{ $json.body.message }}</code>.</li>
+    <li>Activate, copy the production URL, add <code>whatsapp=&lt;url&gt;</code> to <code>SYNAPSE_N8N_WEBHOOKS</code>.</li>
+  </ol>
+  <div class="note warn">
+    <span class="t">WhatsApp's 24-hour rule</span>
+    Free-form text can only be sent to someone who messaged your WhatsApp number in the last 24 hours. Starting a
+    conversation cold requires a pre-approved <em>template</em> message. For messages to yourself, message the test
+    number once a day, or use Telegram.
+  </div>
+</section>
+
+<section class="page-break">
+  <h3>9.6 &nbsp;Recipe: Slack</h3>
+  <div class="flow"><div class="node trig"><b>Webhook</b><i>POST · Header Auth</i></div><span class="arr">→</span>
+    <div class="node"><b>Slack</b><i>Send message</i></div></div>
+  <ol>
+    <li><strong>api.slack.com/apps</strong> → Create New App → From scratch → pick your workspace.</li>
+    <li>OAuth &amp; Permissions → Bot Token Scopes: <code>chat:write</code> → <em>Install to workspace</em> → copy the
+        <code>xoxb-</code> token.</li>
+    <li>In Slack, invite the bot to the channel: <code>/invite @&lt;app name&gt;</code>.</li>
+    <li>n8n: Webhook → <strong>Slack → Send a message</strong>. Credential: Access Token = the xoxb token. Send message to:
+        Channel <code>#&lt;channel&gt;</code> (or <code>{{ $json.body.to }}</code>). Text: <code>{{ $json.body.message }}</code>.</li>
+    <li>Activate → register as <code>slack=&lt;production URL&gt;</code>.</li>
+  </ol>
+
+  <h3>9.7 &nbsp;Recipe: log to Google Sheets</h3>
+  <div class="flow"><div class="node trig"><b>Webhook</b><i>POST · Header Auth</i></div><span class="arr">→</span>
+    <div class="node"><b>Set</b><i>date, text</i></div><span class="arr">→</span>
+    <div class="node"><b>Google Sheets</b><i>Append row</i></div></div>
+  <ol>
+    <li>Create a sheet with header row <code>Date | Entry</code>.</li>
+    <li>n8n: Webhook → <strong>Edit Fields (Set)</strong>: <code>Date</code> = <code>{{ $now.toISODate() }}</code>,
+        <code>Entry</code> = <code>{{ $json.body.message }}</code> → <strong>Google Sheets → Append row</strong>
+        (sign in with Google; pick the document and sheet; map columns automatically).</li>
+    <li>Register as <code>sheet=&lt;production URL&gt;</code>. Try: <em>“Log to my sheet: finished LangGraph chapter 3”</em>.</li>
+  </ol>
+
+  <h3>9.8 &nbsp;Recipe: inbound WhatsApp auto-reply</h3>
+  <div class="flow"><div class="node trig"><b>WhatsApp Trigger</b><i>Messages</i></div><span class="arr">→</span>
+    <div class="node"><b>If</b><i>is a text message</i></div><span class="arr">→</span>
+    <div class="node"><b>HTTP Request</b><i>POST Synapse /api/messages</i></div></div>
+  <ol>
+    <li>Synapse must be reachable from n8n: same machine (<code>http://localhost:8000</code>; from n8n in Docker use
+        <code>http://host.docker.internal:8000</code>), or a tunnel URL (section 10.4). Set <code>SYNAPSE_API_TOKEN</code>.</li>
+    <li>n8n → new workflow → <strong>WhatsApp Trigger</strong>, Updates: <em>messages</em>, credential = the Meta app
+        (client ID/secret from the app's Basic settings). n8n registers the callback with Meta when you activate.</li>
+    <li><strong>If</strong> node: condition <code>{{ $json.messages[0].type }}</code> is equal to <code>text</code>
+        (ignores read receipts and media). Open the trigger's output panel once to confirm these field names — Meta
+        sometimes nests them differently.</li>
+    <li><strong>HTTP Request</strong> (true branch): Method <code>POST</code>; URL <code>&lt;synapse&gt;/api/messages</code>;
+        Authentication: Generic → <em>Header Auth</em> with name <code>Authorization</code>, value
+        <code>Bearer &lt;SYNAPSE_API_TOKEN&gt;</code>; Send Body → JSON:
+<pre><code>{
+  "source": "whatsapp",
+  "sender": "{{ $json.messages[0].from }}",
+  "text":   "{{ $json.messages[0].text.body }}"
+}</code></pre></li>
+    <li>Activate. The outbound <code>whatsapp</code> workflow from 9.5 must also be registered — Synapse replies through it.</li>
+  </ol>
+  <p><strong>What happens next:</strong> Synapse classifies the message. Routine (greeting, thanks, simple question,
+     confirming a time): it drafts a short reply in your voice and sends it with
+     <code>run_workflow("whatsapp", {to: sender, message})</code>. Anything involving money, commitments, sensitive
+     topics or an upset tone: <em>no reply</em> — you get a notification with a suggested draft. The incoming text is
+     treated strictly as data, never as instructions.</p>
+  <div class="note">
+    <span class="t">Replies wait for your one-click approval by default</span>
+    <code>run_workflow</code> is classed high-risk, so each reply appears under “◐ to sign” in the dashboard. To let
+    routine replies go out on their own, change <code>"run_workflow": "high"</code> to <code>"medium"</code> in
+    <code>synapse/guardrails.py</code> (medium still asks whenever the content came from the web). Do this only once you
+    trust its judgement on a week of real messages.
+  </div>
+  <p>Telegram works the same way: <strong>Telegram Trigger</strong> → HTTP Request with
+     <code>"source": "telegram"</code>, <code>"sender": "{{ $json.message.chat.id }}"</code>,
+     <code>"text": "{{ $json.message.text }}"</code>, and a registered <code>telegram</code> workflow for replies.</p>
+
+  <h3>9.9 &nbsp;n8n troubleshooting</h3>
+  <table>
+    <tr><th style="width:56mm">Symptom</th><th>Fix</th></tr>
+    <tr><td>“workflow 'x' is not registered”</td><td>Name missing from <code>SYNAPSE_N8N_WEBHOOKS</code>, or you did not restart Synapse after editing <code>.env</code>.</td></tr>
+    <tr><td>HTTP 404 from n8n</td><td>Workflow not Active, or you registered the <code>/webhook-test/</code> URL.</td></tr>
+    <tr><td>HTTP 403 from n8n</td><td>Secret mismatch between <code>SYNAPSE_N8N_SECRET</code> and the Header Auth credential (name must be exactly <code>X-Synapse-Secret</code>).</td></tr>
+    <tr><td>Message arrives empty</td><td>Expression used <code>$json.message</code>; it must be <code>$json.body.message</code>.</td></tr>
+    <tr><td>Synapse says sent, nothing arrived</td><td>Webhook set to “Respond Immediately”, so errors were hidden. Use “When Last Node Finishes” and check n8n's <em>Executions</em> list.</td></tr>
+    <tr><td>Inbound never reaches Synapse</td><td>n8n cannot reach the URL (localhost from the cloud), or 401 from a missing/incorrect Bearer token.</td></tr>
+  </table>
+</section>
+
+<!-- ───────────────────────────── 10 ───────────────────────────── -->
+<section class="page-break">
+  <h2><span class="n">10</span>Deployment</h2>
+  <div class="sub">Pick one. The first is the recommended default for a personal assistant.</div>
+  <table>
+    <tr><th style="width:36mm">Route</th><th>Cost</th><th>Model</th><th>Reachable from phone</th><th style="width:40mm">Choose when</th></tr>
+    <tr><td>10.1 Mac, always on</td><td>Free</td><td>Local + Groq</td><td>With a tunnel</td><td>Default. Private, your vault stays local.</td></tr>
+    <tr><td>10.2 Docker (Mac)</td><td>Free</td><td>Local (host) + Groq</td><td>With a tunnel</td><td>You want a container you can rebuild.</td></tr>
+    <tr><td>10.3 VPS + Caddy</td><td>~$5/month</td><td>Groq only</td><td>Yes</td><td>Must work while your Mac sleeps.</td></tr>
+  </table>
+
+  <h3>10.1 &nbsp;Your Mac, always on</h3>
+  <p>A launch agent starts Synapse at login and restarts it if it crashes. Replace <code>&lt;you&gt;</code> twice:</p>
+<pre><code>cat &gt; ~/Library/LaunchAgents/com.synapse.api.plist &lt;&lt;'PLIST'
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
+&lt;plist version="1.0"&gt;&lt;dict&gt;
+  &lt;key&gt;Label&lt;/key&gt;&lt;string&gt;com.synapse.api&lt;/string&gt;
+  &lt;key&gt;ProgramArguments&lt;/key&gt;
+  &lt;array&gt;&lt;string&gt;/Users/&lt;you&gt;/Desktop/synapse/.venv/bin/synapse-api&lt;/string&gt;&lt;/array&gt;
+  &lt;key&gt;WorkingDirectory&lt;/key&gt;&lt;string&gt;/Users/&lt;you&gt;/Desktop/synapse&lt;/string&gt;
+  &lt;key&gt;RunAtLoad&lt;/key&gt;&lt;true/&gt;
+  &lt;key&gt;KeepAlive&lt;/key&gt;&lt;true/&gt;
+  &lt;key&gt;StandardOutPath&lt;/key&gt;&lt;string&gt;/tmp/synapse.log&lt;/string&gt;
+  &lt;key&gt;StandardErrorPath&lt;/key&gt;&lt;string&gt;/tmp/synapse.err&lt;/string&gt;
+&lt;/dict&gt;&lt;/plist&gt;
+PLIST
+
+launchctl load ~/Library/LaunchAgents/com.synapse.api.plist
+brew services start ollama</code></pre>
+  <ul>
+    <li>Logs: <code>tail -f /tmp/synapse.err</code>. Stop: <code>launchctl unload ~/Library/LaunchAgents/com.synapse.api.plist</code>.</li>
+    <li>After changing <code>.env</code> or pulling code: unload, then load again.</li>
+    <li>Scheduled goals run only while the Mac is awake: System Settings → Battery → Options → <em>Prevent automatic
+        sleeping when the display is off</em> (on power adapter).</li>
+  </ul>
+
+  <h3>10.2 &nbsp;Docker</h3>
+<pre><code>cp .env.example .env                       <span class="c"># fill it in (section 3)</span>
+VAULT_PATH="/Users/&lt;you&gt;/Documents/&lt;YourVault&gt;" docker compose up -d --build
+docker compose logs -f
+curl http://127.0.0.1:8000/api/health</code></pre>
+  <ul>
+    <li><code>docker-compose.yml</code> reads your <code>.env</code>, then fixes the paths inside the container
+        (<code>/vault</code>, <code>/data</code>) and points at Ollama on the host.</li>
+    <li>The vault is a bind mount: notes land on your disk and Obsidian sees them live. <code>./data</code> holds all state.</li>
+    <li>The port is published on <code>127.0.0.1</code> only. Add the crew with
+        <code>SYNAPSE_EXTRAS=google,crew docker compose up -d --build</code>.</li>
+    <li>Update: <code>git pull &amp;&amp; docker compose up -d --build</code>. The healthcheck marks the container unhealthy if the API stops answering.</li>
+  </ul>
+</section>
+
+<section class="page-break">
+  <h3>10.3 &nbsp;VPS with HTTPS</h3>
+  <p>For a small Ubuntu VM (1 vCPU / 2 GB is enough; any provider). You need a domain or subdomain pointing at its IP
+     (DNS A record, e.g. <code>synapse.&lt;yourdomain&gt;</code>).</p>
+<pre><code><span class="c"># on the server, as a sudo user</span>
+sudo apt update &amp;&amp; sudo apt install -y docker.io docker-compose-v2 git caddy
+sudo usermod -aG docker $USER &amp;&amp; newgrp docker
+git clone https://github.com/&lt;your-username&gt;/synapse.git &amp;&amp; cd synapse
+cp .env.example .env &amp;&amp; nano .env           <span class="c"># VPS values from 3.8; chmod 600 .env</span>
+mkdir -p vault &amp;&amp; VAULT_PATH=./vault docker compose up -d --build</code></pre>
+  <p>Caddy obtains and renews the TLS certificate automatically. <code>/etc/caddy/Caddyfile</code>:</p>
+<pre><code>synapse.&lt;yourdomain&gt; {
+    reverse_proxy 127.0.0.1:8000
+}</code></pre>
+<pre><code>sudo systemctl reload caddy
+sudo ufw allow OpenSSH &amp;&amp; sudo ufw allow 80,443/tcp &amp;&amp; sudo ufw enable</code></pre>
+  <div class="note warn">
+    <span class="t">The vault on a server</span>
+    On a VPS the vault is a folder on the server, not the one Obsidian opens on your Mac. Sync it (Obsidian Sync,
+    Syncthing, or a private git repo) if you want both. This is why 10.1 is the default.
+  </div>
+
+  <h3>10.4 &nbsp;Tunnels: reach your Mac from your phone or from n8n</h3>
+  <h4>Quick, temporary URL</h4>
+<pre><code>brew install cloudflared
+cloudflared tunnel --url http://localhost:8000     <span class="c"># prints https://&lt;random&gt;.trycloudflare.com</span></code></pre>
+  <p>The URL changes each time — fine for testing, not for n8n.</p>
+  <h4>Stable URL (free, needs a domain on Cloudflare)</h4>
+<pre><code>cloudflared tunnel login
+cloudflared tunnel create synapse
+cloudflared tunnel route dns synapse synapse.&lt;yourdomain&gt;
+cloudflared tunnel run --url http://localhost:8000 synapse
+sudo cloudflared service install                    <span class="c"># keep it running across reboots</span></code></pre>
+  <p>ngrok works too: <code>ngrok http 8000</code> (a free static domain is available in its dashboard).</p>
+
+  <div class="note warn">
+    <span class="t">One token, one user</span>
+    Synapse is single-user: <code>SYNAPSE_API_TOKEN</code> is the whole authorisation model, with no accounts or
+    roles. Anyone with the URL and the token can read your vault and send mail as you. Share neither.
+  </div>
+</section>
+
+<!-- ───────────────────────────── 11 ───────────────────────────── -->
+<section class="page-break">
+  <h2><span class="n">11</span>Pre-launch checklist</h2>
+  <div class="sub">Tick every line before the port is reachable by anything but your Mac.</div>
+  <div class="two">
+  <div>
+  <h4>Correctness</h4>
+  <ul class="check">
+    <li><code>uv run pytest -q</code> passes</li>
+    <li><code>uv run python -m evals.run</code> passes</li>
+    <li><code>uv run ruff check synapse evals tests</code> clean</li>
+    <li><code>npm run build</code> without warnings</li>
+    <li><code>uv run synapse doctor</code> shows the right vault</li>
+    <li>CI green on GitHub</li>
+  </ul>
+  <h4>Operations</h4>
+  <ul class="check">
+    <li><code>data/</code> and the vault are backed up</li>
+    <li><code>/api/health</code> returns 200</li>
+    <li>You know how to roll back (12.3)</li>
+    <li>You know where the logs are</li>
+  </ul>
+  </div>
+  <div>
+  <h4>Security</h4>
+  <ul class="check">
+    <li><code>SYNAPSE_API_TOKEN</code> is a long random value</li>
+    <li><code>SYNAPSE_HOST=127.0.0.1</code>; access only via tunnel or Caddy</li>
+    <li>HTTPS on every public URL</li>
+    <li><code>.env</code>, <code>data/</code> never committed; <code>chmod 600 .env</code> on servers</li>
+    <li>Approvals left on for email, deletes and workflows</li>
+    <li><code>SYNAPSE_N8N_WEBHOOKS</code> lists only workflows you built</li>
+    <li><code>SYNAPSE_N8N_SECRET</code> set and checked in n8n</li>
+  </ul>
+  </div>
+  </div>
+  <h4>First hour after going live</h4>
+  <ol>
+    <li><code>curl https://&lt;your-url&gt;/api/health</code> from your phone's network returns 200.</li>
+    <li><code>curl https://&lt;your-url&gt;/api/runs</code> without the token returns 401.</li>
+    <li>Run one real goal and approve one risky action end to end.</li>
+    <li>Check the trace (Show working) recorded it and the Evals tab still loads.</li>
+  </ol>
+
+<!-- ───────────────────────────── 12 ───────────────────────────── -->
+  <h2 style="margin-top:9mm"><span class="n">12</span>Operating it</h2>
+  <div class="sub">Backups, upgrades, rollback, and what normal looks like.</div>
+  <h3>12.1 &nbsp;Back up</h3>
+  <table>
+    <tr><th style="width:36mm">Path</th><th>Contents</th><th style="width:30mm">How</th></tr>
+    <tr><td>your vault</td><td>Every note Synapse wrote or edited</td><td>Time Machine / Obsidian Sync</td></tr>
+    <tr><td><code>data/</code></td><td>Runs, traces, memory, schedules, checkpoints, Google token</td><td>Time Machine, or <code>tar czf</code> nightly</td></tr>
+    <tr><td><code>.env</code></td><td>Keys and paths</td><td>Password manager</td></tr>
+  </table>
+  <p>Deleted notes go to <code>.trash/</code> inside the vault, so an accidental delete is recoverable.</p>
+  <h3>12.2 &nbsp;Upgrade</h3>
+<pre><code>git pull
+uv sync --extra dev --extra google
+cd web &amp;&amp; npm install &amp;&amp; npm run build &amp;&amp; cd ..
+uv run pytest -q &amp;&amp; uv run python -m evals.run
+launchctl unload ~/Library/LaunchAgents/com.synapse.api.plist &amp;&amp; launchctl load ~/Library/LaunchAgents/com.synapse.api.plist</code></pre>
+  <h3>12.3 &nbsp;Roll back</h3>
+  <table>
+    <tr><th style="width:40mm">Situation</th><th>Action</th></tr>
+    <tr><td>Bad release</td><td><code>git log --oneline</code> → <code>git checkout &lt;good-commit&gt;</code> → rebuild → restart</td></tr>
+    <tr><td>A feature misbehaves</td><td><code>SYNAPSE_ENABLE_WEB/CREW/SCHEDULER=false</code>, remove an n8n webhook, restart</td></tr>
+    <tr><td>Corrupt state</td><td>Stop, restore <code>data/</code> from backup, start</td></tr>
+    <tr><td>Provider quota or cost</td><td>Remove the <code>SYNAPSE_FAST_*</code> lines; it runs fully local</td></tr>
+  </table>
+  <h3>12.4 &nbsp;What normal looks like</h3>
+  <table>
+    <tr><th style="width:52mm">Action</th><th>Local 7B</th><th>With Groq</th></tr>
+    <tr><td>Greeting / general question</td><td>2–6 s</td><td>&lt; 2 s</td></tr>
+    <tr><td>Note written and verified</td><td>30–70 s</td><td>5–15 s</td></tr>
+    <tr><td>Research with sources</td><td>1–3 min</td><td>20–50 s</td></tr>
+    <tr><td>Crew research report</td><td>3–6 min</td><td>1–2 min</td></tr>
+  </table>
+  <p>Every run records node latencies, model, tokens, tool calls, approvals and errors — visible under “Show working”
+     and stored in <code>data/traces.db</code>.</p>
+</section>
+
+<!-- ───────────────────────────── 13 ───────────────────────────── -->
+<section class="page-break">
+  <h2><span class="n">13</span>Troubleshooting</h2>
+  <div class="sub">Symptom, then cause and fix.</div>
+  <table>
+    <tr><th style="width:56mm">Symptom</th><th>Cause and fix</th></tr>
+    <tr><td><code>command not found: uv</code></td><td><code>brew install uv</code>, then open a new terminal.</td></tr>
+    <tr><td><code>zsh: no matches found: .[dev]</code></td><td>Quote extras in zsh: <code>".[dev]"</code>. With <code>uv sync --extra dev</code> this cannot happen.</td></tr>
+    <tr><td>doctor: Ollama unreachable</td><td><code>ollama serve</code> is not running (or <code>brew services start ollama</code>).</td></tr>
+    <tr><td><code>0 notes</code>, nothing in Obsidian</td><td><code>SYNAPSE_VAULT_PATH</code> is not the vault Obsidian opens; compare with doctor's output.</td></tr>
+    <tr><td>Page shows “Can't reach the Synapse API”</td><td>API not running, or a different port. Check <code>/tmp/synapse.err</code>.</td></tr>
+    <tr><td>Blank dashboard</td><td>Dashboard not built after a change: <code>cd web &amp;&amp; npm run build</code>. The browser console names any error.</td></tr>
+    <tr><td>401 everywhere after setting a token</td><td>The dashboard asks for the token once; clear site data if an old one is stored.</td></tr>
+    <tr><td>Runs take minutes</td><td>Local 7B. Add Groq (section 6).</td></tr>
+    <tr><td>Groq errors / rate limit</td><td>Free-tier limit; it falls back to Ollama. Check the key and model name.</td></tr>
+    <tr><td>Gmail tools fail after a week</td><td>Testing-mode token expired. Re-run <code>uv run python -m synapse.integrations.google_auth</code>.</td></tr>
+    <tr><td>Email bounced (“address not found”)</td><td>Check the To line in the approval card before signing. Labels glued to Gmail addresses (<code>mail-you@gmail.com</code>) are removed automatically.</td></tr>
+    <tr><td>“recipient has not been used before”</td><td>Include the address once in your message; after that it is remembered.</td></tr>
+    <tr><td>Email refused: placeholder text</td><td>Working as intended — the data wasn't fetched. It re-plans; if it still fails, name the city for the weather.</td></tr>
+    <tr><td>Notion: not found</td><td>The page isn't shared with the integration (⋯ → Connections).</td></tr>
+    <tr><td>Scheduled goal never ran</td><td>API wasn't running or the Mac was asleep at that time.</td></tr>
+    <tr><td>A server “unavailable” in the sidebar</td><td>That MCP server failed to start; <code>uv run synapse doctor</code> prints why.</td></tr>
+    <tr><td>n8n issues</td><td>See 9.9.</td></tr>
+  </table>
+
+<!-- ───────────────────────────── 14 ───────────────────────────── -->
+  <h2 style="margin-top:9mm"><span class="n">14</span>Changing it yourself</h2>
+  <div class="sub">Where to edit for the changes you are most likely to want.</div>
+  <table>
+    <tr><th style="width:44mm">Change</th><th>Where</th></tr>
+    <tr><td>Add a tool</td><td>A function in <code>synapse/mcp_servers/*.py</code> (raise <code>ToolError</code> with an actionable message) → its risk in
+        <code>RISK_POLICY</code> (<code>synapse/guardrails.py</code>; unlisted tools default to high) → <code>READ_ONLY</code> if safe to retry →
+        <code>UNTRUSTED_TOOLS</code> if it returns outside content → an eval in <code>evals/scenarios.py</code>.</td></tr>
+    <tr><td>What needs approval</td><td><code>RISK_POLICY</code>: <code>high</code> always asks, <code>medium</code> asks when input is untrusted, <code>low</code> never asks.</td></tr>
+    <tr><td>Planner / writer behaviour</td><td><code>PLANNER_RULES</code> and <code>WRITER_RULES</code> in <code>synapse/graph.py</code>. Hard rules belong in <code>validate_plan()</code>, which forces the planner to correct itself.</td></tr>
+    <tr><td>Agents shown in the UI</td><td><code>ROSTER</code> in <code>web/src/panels.jsx</code> — give an agent a <code>tools</code> list and it lights up when they run.</td></tr>
+    <tr><td>Colours and look</td><td><code>web/src/index.css</code>: black, greys and one sky-green accent (<code>--signal</code>) for live state, approvals and agents. Light mode: off-white page with light-grey and silver surfaces; dark mode: grey page; the sidebar is always black (<code>.surface-dark</code>). One typeface (IBM Plex Sans) — hierarchy from weight, italics and case. Rebuild the dashboard after changes.</td></tr>
+    <tr><td>Email formatting</td><td><code>to_html()</code> / <code>to_plain_text()</code> in <code>synapse/mcp_servers/google.py</code>.</td></tr>
+    <tr><td>Checks</td><td>Behaviour: <code>evals/scenarios.py</code>. UI: <code>scripts/browser_check.py</code>. Unit: <code>tests/</code>.</td></tr>
+    <tr><td>This guide</td><td><code>scripts/deploy_doc.html</code> → <code>uv run python scripts/make_deploy_pdf.py</code>.</td></tr>
+  </table>
+  <div class="note">
+    <span class="t">Honest limits</span>
+    Single user, one token. Guardrails reduce risk but are not a security boundary — MCP servers run with your
+    permissions. Verification proves a write landed exactly; it does not prove a summary is true. Gmail, Calendar,
+    Notion and the n8n recipes follow each service's documented setup but were not exercised against your real
+    accounts here — treat the first run of each as a test. Full list: <code>docs/LIMITATIONS.md</code>.
+  </div>
+</section>
+
+</body>
+</html>

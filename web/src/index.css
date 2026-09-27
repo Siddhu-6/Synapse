@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Carbon & sodium ───────────────────────────────────────────────────────
+   A control room, not a chat app. Warm carbon greys, bone-white type, and one signal colour —
+   sodium amber — that means exactly one thing: current is flowing (an agent is working, a step
+   is running, something is waiting for you). A muted oxide red means "failed", nothing else.
+   Every state also has a shape (square, tick, half, cross), so nothing depends on colour alone.
+
+   Type: Archivo (variable width) for everything you read — pushed to 125% width for display.
+   Martian Mono, slightly condensed, for readouts: labels, ids, tool names, numbers.        */
+
+:root {
+  color-scheme: dark;
+  --paper: 13 13 12;     --paper2: 17 17 16;     --paper3: 34 34 31;     --card: 21 21 19;
+  --rule: 37 37 34;      --rule2: 58 57 53;
+  --ink: 237 234 226;    --ink2: 196 193 184;    --muted: 138 135 126;   --faint: 92 90 84;
+  --signal: 240 166 60;  --signalink: 246 186 100;
+  --alert: 222 94 78;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --paper: 241 239 233;  --paper2: 233 231 224;  --paper3: 219 216 208;  --card: 250 249 245;
+  --rule: 222 219 211;   --rule2: 187 183 173;
+  --ink: 21 20 17;       --ink2: 50 48 43;       --muted: 102 99 91;     --faint: 148 144 135;
+  --signal: 226 146 34;  --signalink: 146 86 0;
+  --alert: 178 52 36;
+}
+/* the rail is carbon in both modes */
+.surface-dark {
+  color-scheme: dark;
+  --paper: 10 10 9;      --paper2: 10 10 9;      --paper3: 30 30 28;     --card: 20 20 18;
+  --rule: 31 31 29;      --rule2: 54 53 50;
+  --ink: 237 234 226;    --ink2: 190 187 178;    --muted: 128 125 117;   --faint: 84 82 77;
+  --signal: 240 166 60;  --signalink: 246 186 100;
+  --alert: 222 94 78;
+  color: rgb(var(--ink2));
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  background: rgb(var(--paper));
+  color: rgb(var(--ink2));
+  font-family: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color .2s ease, color .2s ease;
+}
+
+code, kbd, pre, .font-mono { font-stretch: 87.5%; }
+
+::selection { background: rgb(var(--signal) / .3); color: rgb(var(--ink)); }
+
+:focus-visible { outline: 1.5px solid rgb(var(--signal)); outline-offset: 2px; }
+:focus:not(:focus-visible) { outline: none; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--rule2)); border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--faint)); background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@layer components {
+  /* display type: Archivo at full width */
+  .display { font-stretch: 125%; font-weight: 640; letter-spacing: -0.025em; color: rgb(var(--ink)); }
+
+  /* readout label */
+  .label   { @apply font-mono font-medium text-[9.5px] uppercase tracking-[0.1em] text-muted; }
+  .num     { @apply font-mono tabular-nums; }
+  .hair    { @apply border-b border-rule; }
+
+  .btn     { @apply inline-flex items-center gap-2 font-mono font-medium text-[10.5px] uppercase tracking-[0.08em]
+                    px-3 py-[7px] border transition-colors duration-150
+                    disabled:opacity-35 disabled:cursor-not-allowed; }
+  .btn-ink { @apply btn bg-ink text-paper border-ink hover:bg-ink2 hover:border-ink2; }
+  .btn-signal { @apply btn bg-signal text-[#140f06] border-signal hover:brightness-110; }
+  .btn-line{ @apply btn bg-transparent text-ink border-rule2 hover:border-ink; }
+  .btn-text{ @apply font-mono font-medium text-[9.5px] uppercase tracking-[0.1em] text-muted hover:text-ink transition-colors; }
+
+  .panel   { @apply bg-card border border-rule; }
+}
+
+/* corner ticks: the registration marks on an instrument panel */
+.ticks { position: relative; }
+.ticks::before, .ticks::after {
+  content: ''; position: absolute; width: 7px; height: 7px; pointer-events: none;
+  border-color: rgb(var(--ink) / .55); border-style: solid;
+}
+.ticks::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+.ticks::after  { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+
+/* LED: the status indicator used everywhere. */
+.led { display: inline-block; width: 7px; height: 7px; flex: none; border: 1.25px solid rgb(var(--rule2)); background: transparent; }
+.led[data-s="ok"], .led[data-s="success"] { background: rgb(var(--ink2)); border-color: rgb(var(--ink2)); }
+.led[data-s="running"] { background: rgb(var(--signal)); border-color: rgb(var(--signal));
+  box-shadow: 0 0 0 3px rgb(var(--signal) / .14), 0 0 12px rgb(var(--signal) / .5); animation: blink 1.1s steps(2) infinite; }
+.led[data-s="waiting"], .led[data-s="awaiting_approval"] { border-color: rgb(var(--signal));
+  background: linear-gradient(135deg, rgb(var(--signal)) 50%, transparent 50%); }
+.led[data-s="failed"], .led[data-s="error"], .led[data-s="rejected"], .led[data-s="blocked"] {
+  border-color: rgb(var(--alert)); background:
+    linear-gradient(45deg, transparent 38%, rgb(var(--alert)) 38% 62%, transparent 62%),
+    linear-gradient(-45deg, transparent 38%, rgb(var(--alert)) 38% 62%, transparent 62%); }
+
+/* fine grid for the canvases: 24px squares, very quiet */
+.grid-paper {
+  background-image:
+    linear-gradient(rgb(var(--rule) / .55) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--rule) / .55) 1px, transparent 1px);
+  background-size: 24px 24px; background-position: -1px -1px;
+}
+
+/* The axon: one line down the journal; each exchange is a node on it. While something runs an
+   impulse travels down it. */
+.axon { position: absolute; left: 7px; top: 6px; bottom: 0; width: 1px; background: rgb(var(--rule2)); }
+.axon-live::after {
+  content: ''; position: absolute; left: -2px; width: 5px; height: 36px;
+  background: linear-gradient(to bottom, transparent, rgb(var(--signal)) 60%, transparent);
+  box-shadow: 0 0 12px rgb(var(--signal) / .5);
+  animation: impulse 1.8s cubic-bezier(.45,0,.55,1) infinite;
+}
+
+/* Wires in the agent topology. Idle = hairline. Used = ink. Live = amber with current flowing. */
+/* idle wires must stay visible on the grid-paper background (rule2 disappeared into it) */
+.wire { background: rgb(var(--muted) / .45); transition: background-color .3s ease; }
+.wire[data-s="used"] { background: rgb(var(--ink2) / .7); }
+.wire[data-s="live"] { background-color: rgb(var(--signal) / .35); background-repeat: repeat; }
+.wire-v[data-s="live"] { background-image: linear-gradient(to bottom, transparent 55%, rgb(var(--signal)) 55%);
+  background-size: 100% 10px; animation: flow-v .5s linear infinite; }
+.wire-h[data-s="live"] { background-image: linear-gradient(to right, transparent 55%, rgb(var(--signal)) 55%);
+  background-size: 10px 100%; animation: flow-h .5s linear infinite; }
+@keyframes flow-v { to { background-position: 0 10px; } }
+@keyframes flow-h { to { background-position: 10px 0; } }
+
+/* a thin progress sweep, under the header while a run is live */
+.sweep { position: relative; overflow: hidden; }
+.sweep::after { content: ''; position: absolute; inset: 0; width: 40%;
+  background: linear-gradient(90deg, transparent, rgb(var(--signal)), transparent);
+  animation: sweep 1.6s cubic-bezier(.45,0,.55,1) infinite; }
+
+.fade-in { animation: rise .2s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
