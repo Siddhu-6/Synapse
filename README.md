@@ -1,14 +1,12 @@
 # Synapse
 
-> A personal AI assistant that plans, researches, remembers, manages your notes, email, calendar and
-> messages, and asks for your signature before doing anything it can't take back.
+> A personal agentic assistant that takes a goal, plans it, executes it through MCP tools and specialist agents,
+> verifies what it did, asks before anything risky, and keeps what matters in an Obsidian vault.
 
-Synapse is not a chatbot with a to-do list glued on. It's a multi-agent system: every request is understood,
-planned, executed through real tools, verified, and remembered, and you can watch it happen live on its
-dashboard.
+Synapse is not a chatbot that just **answers**, but a multi-agent system that **executes**. Every request is understood, planned, handed to the right agent, executed through real tools, checked, and remembered, and the dashboard shows each step happening live.
 
-Think of it as an intern who never sleeps, always shows their work, and physically cannot send an email
-without your approval.
+Small talk gets a quick answer. Real work gets a plan, a team, and reliable execution. Anything irreversible with high risks waits for your approval, because autonomy without accountability is just a very confident bug.
+
 
 ![Synapse dashboard](docs/screenshot.png)
 
@@ -129,4 +127,4 @@ Python, LangGraph, CrewAI, MCP, FastAPI, SQLite, React + Vite + Tailwind, Ollama
 
 ---
 
-Built by **Me**...[Synapse-One of the reasons for streak-gap on github]
+Built by **SIDDHIKESH**...[Synapse-One of the reasons for streak-gap on my profile]
