@@ -7,10 +7,26 @@ Synapse is not a chatbot that just "**answers**", but a multi-agent system that 
 
 Small talk gets a quick answer. Real work gets a plan, a team, and reliable execution. Anything irreversible with high risks waits for your approval, because autonomy without accountability is just a very confident bug.
 
-
-![Synapse dashboard](docs/screenshot.png)
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="Synapse dashboard: live journal, pipeline and trace" width="100%">
+  <br>
+  <sub>The journal: every run shows its plan, live pipeline and trace as it happens.</sub>
+</p>
 
 ---
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/images/agents.png" alt="Agent topology" width="100%"><br>
+      <sub><b>Agent topology</b>: the orchestrator, specialist agents and CrewAI crews, lighting up as work moves through them.</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/images/vault.png" alt="Obsidian vault graph" width="100%"><br>
+      <sub><b>Vault graph</b>: notes Synapse writes, linked like your own Obsidian graph.</sub>
+    </td>
+  </tr>
+</table>
 
 ## What it does
 
