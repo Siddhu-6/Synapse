@@ -305,3 +305,27 @@ def test_google_errors_get_a_fix():
                         'used in project 1 before or it is disabled.". Details: "[]">')
     assert e.startswith("Google API error 403") and "APIs & Services" in e
     assert G.is_permanent(e) and not G.is_permanent("search timed out")
+
+
+async def test_unfilled_reference_is_never_sent(settings):
+    """{{s1.body}} pointed at a field the step doesn't return; the literal template was emailed. A reference
+    that can't be filled now fails the step before the tool runs (and before any approval)."""
+    settings.vault_path.mkdir(parents=True)
+    (settings.vault_path / "a.md").write_text("alpha")
+    ap = approve(True)
+    p = plan([tool("s1", "read_note", path="a.md"), tool("s2", "create_note", path="b.md", content="{{s1.body}}")])
+    fixed = plan([tool("s1", "read_note", path="a.md"), tool("s2", "create_note", path="b.md", content="{{s1}}")])
+    d, _ = await run(settings, [p, fixed], "copy note a into b and save it", ap)
+    first = [s for s in d["spans"] if s["attrs"].get("error", "").startswith("{{s1.body}} can't be filled in")]
+    assert first and "no field 'body'" in first[0]["attrs"]["error"]
+    assert "{{" not in (settings.vault_path / "b.md").read_text()
+
+
+def test_plan_may_not_read_fields_of_generated_text():
+    from synapse.graph import Plan, validate_plan
+    p = Plan.model_validate(plan([gen("s1"), tool("s2", "gmail_send", to=["a@b.com"], subject="x", body="{{s1.body}}")]))
+    errs = validate_plan(p, {"gmail_send"}, 6, False, "email it to a@b.com")
+    assert any("has no fields" in e for e in errs)
+    p = Plan.model_validate(plan([gen("s1"), tool("s2", "gmail_create_draft", to=["a@b.com"], subject="x", body="{{s1}}"),
+                                  tool("s3", "gmail_send", to=["a@b.com"], subject="x", body="{{s1}}")]))
+    assert any("Gmail draft" in e for e in validate_plan(p, {"gmail_send", "gmail_create_draft"}, 6, False, "mail a@b.com"))

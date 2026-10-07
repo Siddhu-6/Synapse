@@ -128,12 +128,17 @@ class OllamaLLM:
 class OpenAICompatLLM:
     streams = True
 
-    def __init__(self, base_url: str, api_key: str, model: str, timeout: float, provider: str = "openai-compat"):
+    def __init__(self, base_url: str, api_key: str, model: str, timeout: float, provider: str = "openai-compat",
+                 reasoning_effort: str | None = None):
         self.base_url, self.key, self.model, self.timeout = base_url.rstrip("/"), api_key, model, timeout
-        self.provider = provider
+        self.provider, self.reasoning_effort = provider, reasoning_effort
 
     async def chat(self, messages, json_schema=None, max_tokens=None, on_token: OnToken | None = None):
         payload = {"model": self.model, "messages": messages, "temperature": 0.1}
+        if "gpt-oss" in self.model and self.reasoning_effort:
+            # Default effort thinks for ~1,500 tokens per plan. On Groq's free tier (8k tokens/minute) that alone
+            # forced a minute-long wait or a fall back to the local model mid-run.
+            payload["reasoning_effort"] = self.reasoning_effort
         if max_tokens:
             payload["max_tokens"] = max_tokens + (2048 if REASONING.search(self.model) else 0)
         if json_schema:
@@ -195,7 +200,7 @@ class FallbackLLM:
     instead of paying a failed round-trip on every call; a rate limit pauses it for a minute."""
     streams = True
 
-    MAX_WAIT = 20.0   # a short rate-limit wait on the hosted model beats a minute of local generation
+    MAX_WAIT = 45.0   # waiting out a rate limit (Groq says "try again in 32s") beats ~60s of local 7B planning
 
     def __init__(self, fast: LLM, slow: LLM):
         self.fast, self.slow = fast, slow
@@ -342,7 +347,8 @@ class ModelRouter:
                 self._clients[mid] = OllamaLLM(self.s.ollama_url, name, self.s.llm_timeout, self.s.num_ctx, self.s.keep_alive)
             else:
                 _, base, key = self.remote
-                hosted = OpenAICompatLLM(base, key, name, min(self.s.llm_timeout, 90) if self.local_id else self.s.llm_timeout, prov)
+                hosted = OpenAICompatLLM(base, key, name, min(self.s.llm_timeout, 90) if self.local_id else self.s.llm_timeout, prov,
+                                         reasoning_effort=self.s.reasoning_effort)
                 self._clients[mid] = FallbackLLM(hosted, self._client(self.local_id)) if self.local_id else hosted
         return self._clients[mid]
 

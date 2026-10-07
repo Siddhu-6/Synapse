@@ -44,7 +44,8 @@ class Fake(BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         SEEN.append({"path": self.path, "model": body.get("model"), "stream": body.get("stream"),
-                     "auth": self.headers.get("Authorization"), "messages": body.get("messages")})
+                     "auth": self.headers.get("Authorization"), "messages": body.get("messages"),
+                     "reasoning_effort": body.get("reasoning_effort")})
         text = "hello streamed world"
         if self.path == "/api/chat":
             if body.get("stream"):
@@ -377,3 +378,38 @@ def test_gmail_query_repair_and_reply_tool_is_guarded():
     assert gmail_query("from:x@y.com") == "from:x@y.com"
     assert G.assess_risk("gmail_read_thread", {}) == "low" and "gmail_read_thread" in G.READ_ONLY
     assert "gmail_read_thread" in G.UNTRUSTED_TOOLS          # other people's mail is untrusted input
+
+
+async def test_gpt_oss_thinks_briefly_to_stay_inside_the_free_tier(server):
+    SEEN.clear()
+    await OpenAICompatLLM(f"{server}/v1", "good", "openai/gpt-oss-120b", 10, reasoning_effort="low").chat(
+        [{"role": "user", "content": "x"}])
+    await OpenAICompatLLM(f"{server}/v1", "good", "llama-3.3-70b-versatile", 10, reasoning_effort="low").chat(
+        [{"role": "user", "content": "x"}])
+    assert [x["reasoning_effort"] for x in SEEN] == ["low", None]
+
+
+async def test_rate_limit_wait_of_half_a_minute_still_beats_local_planning(monkeypatch):
+    from synapse.llm import LLMResponse
+    seen = []
+
+    class Limited:
+        n = 0
+
+        async def chat(self, *a, **k):
+            Limited.n += 1
+            if Limited.n == 1:
+                raise LLMError("groq HTTP 429", 429, retry_after=31.6)
+            return LLMResponse(text="fast", provider="groq", model="m", latency_ms=1)
+
+    class Local:
+        async def chat(self, *a, **k):
+            raise AssertionError("fell back instead of waiting")
+
+    import synapse.llm as L
+
+    async def fake_sleep(sec):
+        seen.append(sec)
+    monkeypatch.setattr(L.asyncio, "sleep", fake_sleep)
+    r = await FallbackLLM(Limited(), Local()).chat([{"role": "user", "content": "x"}])
+    assert r.text == "fast" and seen and seen[0] > 31

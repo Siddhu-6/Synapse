@@ -159,7 +159,7 @@ def known_addresses(state: dict) -> set[str]:
 
 
 # Template filler a model writes when it had no data: "[Insert Temperature Here]", "[Your Name]", "TBD".
-PLACEHOLDER = re.compile(r"\[(insert|your|add|enter|fill|replace|placeholder)\b[^\]\n]{0,60}\]|\{\{\s*\w+\s*\}\}"
+PLACEHOLDER = re.compile(r"\[(insert|your|add|enter|fill|replace|placeholder)\b[^\]\n]{0,60}\]|\{\{\s*[\w.]+\s*\}\}"
                          r"|\b(are|is) placeholders?\b|\bplaceholder (text|data|values?)\b", re.I)
 LINK_ONLY_LINE = re.compile(r"^\s*(related( notes)?:?\s*)?(\[\[[^\]]+\]\][\s,·|-]*)+$", re.I | re.M)
 
@@ -357,6 +357,14 @@ def validate_plan(plan: Plan, tool_names: set[str], max_steps: int, crew_enabled
         for ref, _field in REF.findall(json.dumps(s.args) + (s.prompt or "")):
             if ref not in seen:
                 errs.append(f"{s.id}: references {ref} before it exists")
+        kinds = {x.id: x.kind for x in plan.steps}
+        for ref, field in REF.findall(json.dumps(s.args) + (s.prompt or "")):
+            if field and kinds.get(ref) in ("generate", "crew"):
+                errs.append(f"{s.id}: {{{{{ref}.{field}}}}} — {ref} is generated text and has no fields; use {{{{{ref}}}}}")
+        if s.kind == "tool" and s.tool == "gmail_create_draft" and "draft" not in goal.lower() and any(
+                x.tool == "gmail_send" for x in plan.steps):
+            errs.append(f"{s.id}: don't create a Gmail draft to write an email body. Write the body with a generate "
+                        "step and pass {{sN}} to gmail_send.")
         if s.kind == "tool" and s.tool in ("gmail_send", "gmail_create_draft"):
             to = (s.args or {}).get("to")
             for addr in ([to] if isinstance(to, str) else to or []):
@@ -426,6 +434,22 @@ def _render(template: str, results: dict, tainted: set[str], wrap: bool) -> tupl
         return txt
 
     return REF.sub(sub, template), used_taint
+
+
+def unresolved_refs(args: Any, results: dict) -> str | None:
+    """Why rendered arguments still contain a {{sN}} reference, or None. A reference survives rendering when
+    its step failed or the field doesn't exist; sending it would put the raw template in an email."""
+    for m in REF.finditer(json.dumps(args, default=str)):
+        sid, field = m.group(1), m.group(2)
+        r = results.get(sid)
+        if not r or r.get("status") != "ok":
+            return f"{m.group(0)} can't be filled in: step {sid} {'did not run' if not r else r.get('status')}"
+        out = r.get("output")
+        fields = sorted(k for k in out if k not in INTERNAL_KEYS) if isinstance(out, dict) else []
+        return (f"{m.group(0)} can't be filled in: {sid}'s output has no field {field!r}"
+                + (f" (it has: {', '.join(fields)})" if fields else "") + f". Use {{{{{sid}}}}} for its full text, "
+                "or write the text with a generate step.")
+    return None
 
 
 def _render_args(v: Any, results: dict, tainted: set[str]) -> tuple[Any, bool]:
@@ -534,7 +558,10 @@ PLANNER_RULES = """Rules:
   calendar_list_events / gmail_search, then a generate step whose prompt uses their outputs ({{s1}}, {{s2}}).
   Never generate such content without fetching it — that produces invented or placeholder data.
 - Emails are plain text with NO attachments. The body must contain the actual content: set gmail_send body to
-  "{{sN}}" where sN is the step that produced it (a generate step, or read_note of the note to send).
+  "{{sN}}" where sN is the step that produced it (a generate step, or read_note of the note to send). Write the
+  body with a generate step; gmail_create_draft only saves a draft in Gmail, and only when the user asks for one.
+- {{sN.field}} only works for a field the tool really returns (e.g. {{s1.sha256}}). Generated text has no fields:
+  use {{sN}}.
 - Keep the plan minimal. At most {max_steps} steps."""
 
 
@@ -831,6 +858,7 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
                 results[st.id] = {**base, "status": "failed", "error": f"crew failed: {type(e).__name__}: {e}"}
         else:
             args, t = _render_args(st.args, results, tainted)
+            unresolved = unresolved_refs(args, results)
             if st.tool in tools.specs:
                 args, renamed = G.normalize_args(tools.specs[st.tool].input_schema, args)
                 if renamed:
@@ -862,6 +890,7 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
             ev.update(tool=st.tool, risk=risk, tainted_input=t)
             block = G.check_tool_call(st.tool, args, state["goal"], t, known_addresses(state))
             decision = {"approved": True, "auto": True}
+            not_ready = unresolved or not_ready     # a literal "{{s3.body}}" must never be sent or saved
             # A call that will fail validation is not worth an approval: the user would approve, then watch it fail.
             invalid = tools.validate(st.tool, args) if G.needs_approval(risk, t) else None
             if not_ready:
