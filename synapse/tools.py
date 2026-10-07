@@ -96,16 +96,24 @@ class Toolbox:
     def catalog(self) -> list[dict]:
         return [s.catalog_entry() for s in self.specs.values()]
 
+    def validate(self, name: str, args: dict) -> str | None:
+        """The error a call with these arguments would fail with before reaching the server, or None."""
+        spec = self.specs.get(name)
+        if spec is None:
+            return f"unknown tool '{name}'"
+        try:
+            jsonschema.validate(args, spec.input_schema)
+        except jsonschema.ValidationError as e:
+            return f"invalid params: {e.message}"
+        return None
+
     async def call(self, name: str, args: dict) -> ToolResult:
         t0 = time.perf_counter()
         ms = lambda: int((time.perf_counter() - t0) * 1000)  # noqa: E731
         spec = self.specs.get(name)
-        if spec is None:
-            return ToolResult(tool=name, args=args, ok=False, error=f"unknown tool '{name}'")
-        try:
-            jsonschema.validate(args, spec.input_schema)
-        except jsonschema.ValidationError as e:
-            return ToolResult(tool=name, args=args, ok=False, error=f"invalid params: {e.message}")
+        bad = self.validate(name, args)
+        if bad:
+            return ToolResult(tool=name, args=args, ok=False, error=bad)
         # Only read-only tools are retried; retrying a write after a timeout could apply it twice.
         max_attempts = 2 if name in READ_ONLY else 1
         err = ""

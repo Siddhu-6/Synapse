@@ -258,3 +258,50 @@ async def test_planner_is_told_which_integrations_exist(settings):
         await rt.run("add a row to my notion reading list")
     system = " ".join(m["content"] for m in llm.calls[2])
     assert "NONE REGISTERED" in system and "not configured" in system
+
+
+async def test_invalid_args_skip_the_approval_and_replan(settings):
+    """A risky call that would fail validation is never shown for approval: the user would approve it and
+    then watch it fail (a 7B model sent gmail_send without a body). It is replanned instead."""
+    settings.vault_path.mkdir(parents=True)
+    (settings.vault_path / "old.md").write_text("bye")
+    ap = approve(True)
+    bad, good = plan([tool("s1", "delete_note", file="old.md")]), plan([tool("s1", "delete_note", path="old.md")])
+    d, _ = await run(settings, [bad, good, "Deleted old.md"], "delete old.md", ap)
+    assert len(ap.seen) == 1 and ap.seen[0]["args"] == {"path": "old.md"}
+    assert d["status"] == "success" and d["stats"]["replans"] == 1
+
+
+async def test_permanent_integration_error_is_explained_and_not_replanned(settings, monkeypatch):
+    """A deleted Google Cloud project can't be fixed by a new plan: report the fix instead of retrying."""
+    from synapse.tools import Toolbox, ToolResult
+    real = Toolbox.call
+
+    async def call(self, name, args):
+        if name == "add_task":
+            return ToolResult(tool=name, args=args, ok=False, error=(
+                '<HttpError 403 when requesting https://gmail.googleapis.com/gmail/v1/users/me/messages/send?alt=json '
+                'returned "Project #502774863971 has been deleted.". Details: "[{\'reason\': \'forbidden\'}]">'))
+        return await real(self, name, args)
+    monkeypatch.setattr(Toolbox, "call", call)
+    d, llm = await run(settings, [plan([tool("s1", "add_task", title="x")]), "Could not add it."], "add a task")
+    assert d["status"] == "failed" and d["stats"]["replans"] == 0
+    err = d["results"]["s1"]["error"]
+    assert "Project #502774863971 has been deleted" in err and "Restore" in err and "Details" not in err
+
+
+def test_synonym_arguments_are_renamed_to_the_schema():
+    schema = {"type": "object", "required": ["to", "subject", "body"],
+              "properties": {"to": {"type": "array", "items": {"type": "string"}},
+                             "subject": {"type": "string"}, "body": {"type": "string"}}}
+    out, notes = G.normalize_args(schema, {"to": "a@x.com, b@y.com", "subject": "Hi", "message": "Hello"})
+    assert out == {"to": ["a@x.com", "b@y.com"], "subject": "Hi", "body": "Hello"} and notes
+    same, notes = G.normalize_args(schema, {"to": ["a@x.com"], "subject": "Hi", "body": "Hello"})
+    assert same == {"to": ["a@x.com"], "subject": "Hi", "body": "Hello"} and not notes
+
+
+def test_google_errors_get_a_fix():
+    e = G.explain_error('<HttpError 403 when requesting https://gmail.googleapis.com/x returned "Gmail API has not been '
+                        'used in project 1 before or it is disabled.". Details: "[]">')
+    assert e.startswith("Google API error 403") and "APIs & Services" in e
+    assert G.is_permanent(e) and not G.is_permanent("search timed out")

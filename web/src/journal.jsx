@@ -6,7 +6,7 @@
  *    page jump to the bottom.
  *  - An entry is an <article>, not a <button>. Answers contain [[wikilink]] buttons, and a button
  *    inside a button is invalid HTML that browsers repair unpredictably.                            */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from './api'
 import { Markdown } from './md'
 import { Elapsed, Glyph, Led, Mark, ROSTER, fmt } from './panels'
@@ -20,6 +20,46 @@ import { Axon, Trace } from './rail'
  *  answers ("Page Unresponsive").                                                                 */
 
 const plural = (n, w) => `${n ?? 0} ${w}${n === 1 ? '' : 's'}`
+
+/** Types `target` out a few characters per frame. The server sends text in bursts (every ~250ms), which
+ *  read as words popping in; this spreads each burst over the next ~quarter second, so the eye sees
+ *  letters. Speed follows the backlog, so a whole answer arriving at once still finishes in about a
+ *  second, and markdown is re-rendered at most ~30 times a second.                                  */
+export function useTypewriter(target, enabled) {
+  const text = target || ''
+  const st = useRef({ n: enabled ? 0 : text.length, prev: text })
+  const [, setTick] = useState(0)
+  const s = st.current
+  if (s.prev !== text) {              // new text: keep what is shared with what was already shown
+    let i = 0
+    const m = Math.min(s.n, text.length)
+    while (i < m && s.prev.charCodeAt(i) === text.charCodeAt(i)) i++
+    s.n = i
+    s.prev = text
+  }
+  if (!enabled) s.n = text.length
+
+  useEffect(() => {
+    if (!enabled) return
+    let raf, last = performance.now()
+    const step = (now) => {
+      const len = st.current.prev.length
+      if (st.current.n >= len) return               // caught up; the next text change restarts the loop
+      const dt = now - last
+      if (dt >= 33) {
+        last = now
+        const backlog = len - st.current.n
+        st.current.n = Math.min(len, st.current.n + Math.max(Math.ceil(dt * 0.09), Math.ceil(backlog * dt / 250)))
+        setTick((x) => x + 1)
+      }
+      raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [text, enabled])
+
+  return { shown: text.slice(0, s.n), typing: s.n < text.length }
+}
 
 /* ── approval ─────────────────────────────────────────────────────────────── */
 
@@ -117,17 +157,15 @@ function Plan({ run, live }) {
 
 /* ── entry ────────────────────────────────────────────────────────────────── */
 
-function Answer({ text, justFinished, onNote }) {
-  // No typing replay: the text already streamed in (or arrived whole from a fast model), and replaying
-  // it word by word afterwards only made a finished answer look slow.
-  const shown = text
+/** The answer text, typed out. It lives in its own component so typing re-renders only the text,
+ *  not the plan and trace around it. */
+function Typed({ text, enabled, onNote, cursor }) {
+  const { shown, typing } = useTypewriter(text, enabled)
   return (
-    <div className="relative">
+    <>
       <Markdown text={shown} onNote={onNote} />
-      {shown.length < (text || '').length && (
-        <span aria-hidden="true" className="inline-block w-[8px] h-[15px] -mb-0.5 bg-signal animate-blink" />
-      )}
-    </div>
+      {(typing || cursor) && <span aria-hidden="true" className="inline-block w-[7px] h-[14px] bg-signal align-[-2px] animate-blink" />}
+    </>
   )
 }
 
@@ -184,24 +222,26 @@ export function Entry({ turn, detail, index, selected, justFinished, live, draft
         </div>
       )}
 
-      {r.answer
-        ? <Answer text={r.answer} justFinished={selected && justFinished} onNote={onNote} />
-        : running
-          ? <>
+      {r.answer || running
+        ? <>
+            {!r.answer && (
               <p className="text-[11.5px] font-mono text-signalink flex items-center gap-2.5">
                 <Led state="running" />
                 {draft
                   ? `${draft.actor || 'Writer'} is writing${draft.final ? '' : ` · ${live?.description || 'a draft'}`}…`
                   : live?.description || (live?.stage ? `${live.stage}…` : 'Starting…')}
               </p>
-              {draft?.text && (
-                <div className={`mt-3 ${draft.final ? '' : 'max-h-[220px] overflow-hidden opacity-70 [mask-image:linear-gradient(to_bottom,black_70%,transparent)]'}`}
-                  aria-live="off">
-                  <Markdown text={draft.text} />
-                  <span aria-hidden="true" className="inline-block w-[7px] h-[14px] bg-signal align-[-2px] animate-blink" />
-                </div>
-              )}
-            </>
+            )}
+            {(r.answer || draft?.text) && (
+              // One element for the draft and the final answer, so the typing carries on from the
+              // draft into the answer instead of restarting or jumping.
+              <div aria-live="off" className={r.answer ? 'relative' : `mt-3 ${draft?.final ? '' :
+                'max-h-[220px] overflow-hidden opacity-70 [mask-image:linear-gradient(to_bottom,black_70%,transparent)]'}`}>
+                <Typed text={r.answer || draft?.text || ''} enabled={running || !!justFinished}
+                  onNote={r.answer ? onNote : undefined} cursor={!r.answer} />
+              </div>
+            )}
+          </>
           : !r.pending && <p className="text-[14px] text-muted">No answer recorded.</p>}
 
       <footer className="mt-5 pt-2 border-t border-rule flex flex-wrap items-center gap-x-5 gap-y-2">

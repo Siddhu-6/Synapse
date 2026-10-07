@@ -831,6 +831,10 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
                 results[st.id] = {**base, "status": "failed", "error": f"crew failed: {type(e).__name__}: {e}"}
         else:
             args, t = _render_args(st.args, results, tainted)
+            if st.tool in tools.specs:
+                args, renamed = G.normalize_args(tools.specs[st.tool].input_schema, args)
+                if renamed:
+                    ev["arg_fixes"] = renamed
             not_ready = None
             for key in OUTGOING_TEXT.get(st.tool, ()):
                 if key in args:
@@ -858,10 +862,15 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
             ev.update(tool=st.tool, risk=risk, tainted_input=t)
             block = G.check_tool_call(st.tool, args, state["goal"], t, known_addresses(state))
             decision = {"approved": True, "auto": True}
+            # A call that will fail validation is not worth an approval: the user would approve, then watch it fail.
+            invalid = tools.validate(st.tool, args) if G.needs_approval(risk, t) else None
             if not_ready:
                 results[st.id] = {**base, "status": "failed", "tool": st.tool, "error": not_ready}
             elif block:
                 results[st.id] = {**base, "status": "blocked", "tool": st.tool, "error": f"guardrail: {block}"}
+            elif invalid:
+                results[st.id] = {**base, "status": "failed", "tool": st.tool, "error": invalid}
+                ev["skipped_approval"] = "arguments invalid"
             else:
                 if G.needs_approval(risk, t):
                     decision = interrupt({"type": "approval", "step": st.id, "tool": st.tool, "args": args, "risk": risk,
@@ -918,7 +927,7 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
                         if tr.ok:
                             results[st.id] = {**base, "status": "ok", "tool": st.tool, "output": tr.data}
                         else:
-                            results[st.id] = {**base, "status": "failed", "tool": st.tool, "error": tr.error}
+                            results[st.id] = {**base, "status": "failed", "tool": st.tool, "error": G.explain_error(tr.error)}
         ev["status"] = results[st.id]["status"]
         if results[st.id].get("error"):
             ev["error"] = results[st.id]["error"]
@@ -968,6 +977,8 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
             return "respond"
         if any(r["status"] in ("rejected", "blocked") for r in res.values()):
             return "respond"  # respect the user's / guardrail's decision; don't route around it
+        if any(r["status"] == "failed" and G.is_permanent(r.get("error")) for r in res.values()):
+            return "respond"  # broken integration (deleted project, bad key): a new plan hits the same wall
         return "replan"
 
     async def replan(state: AgentState):

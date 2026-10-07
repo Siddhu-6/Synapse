@@ -87,6 +87,83 @@ ARG_ERROR = re.compile(r"invalid params|required property|is a required|must be|
                        r"expected .* got|ISO date", re.I)
 
 
+# Failures no replan can fix: the integration itself is broken (deleted project, disabled API, revoked
+# sign-in, bad key). Replanning only burns another planner call and hits the same wall.
+PERMANENT_ERROR = re.compile(r"has been deleted|accessNotConfigured|SERVICE_DISABLED|has not been used in project|"
+                             r"invalid_grant|unauthorized_client|expired or revoked|Invalid API Key|"
+                             r"HTTP 401|HttpError 401", re.I)
+
+_HINTS = [
+    (re.compile(r"googleapis.*has been deleted|has been deleted.*googleapis|Project #\d+ has been deleted", re.I | re.S),
+     "the Google Cloud project behind Gmail/Calendar was deleted. Restore it within 30 days (console.cloud.google.com "
+     "-> IAM & Admin -> Manage resources -> Resources pending deletion -> Restore), or create a new OAuth client "
+     "(SETUP.md section 7) and run `python -m synapse.integrations.google_auth` again."),
+    (re.compile(r"accessNotConfigured|SERVICE_DISABLED|has not been used in project", re.I),
+     "that Google API is turned off in your Cloud project. Enable it in APIs & Services -> Library, wait a minute, retry."),
+    (re.compile(r"invalid_grant|expired or revoked", re.I),
+     "the Google sign-in expired or was revoked. Run `python -m synapse.integrations.google_auth` again."),
+]
+
+
+def explain_error(err: str | None) -> str | None:
+    """Short, actionable error text: drops Google's noisy details and adds the fix when the cause is known."""
+    if not err:
+        return err
+    short = re.sub(r"\.?\s*Details:.*$", "", err, flags=re.S).strip()
+    m = re.search(r'returned "([^"]+)"', short)
+    if m and "HttpError" in short:
+        code = re.search(r"HttpError (\d{3})", short)
+        short = f"Google API error {code.group(1) if code else ''}: {m.group(1)}".replace("  ", " ")
+    for rx, hint in _HINTS:
+        if rx.search(err):
+            return f"{short} -- fix: {hint}"
+    return short
+
+
+def is_permanent(err: str | None) -> bool:
+    return bool(err and PERMANENT_ERROR.search(err))
+
+
+# Small models often pick a near-synonym for an argument name ("message" for "body"). Renaming it to the
+# schema's name is deterministic, so it is safe to do before an approval is asked for.
+ARG_ALIASES = {
+    "body": ("message", "text", "content", "email_body", "mail_body", "msg"),
+    "subject": ("title", "subject_line"),
+    "to": ("recipient", "recipients", "to_email", "email", "address"),
+    "content": ("body", "text", "markdown", "note_content"),
+    "query": ("q", "search", "search_query", "term"),
+    "message": ("text", "body", "content", "msg"),
+}
+LIST_OF_ADDRESSES = {"to", "cc", "bcc", "attendees"}
+
+
+def normalize_args(schema: dict | None, args: dict) -> tuple[dict, list[str]]:
+    """Rename synonym keys to the names the schema requires and fix obvious type slips (str vs list)."""
+    schema = schema or {}
+    props = schema.get("properties") or {}
+    out, notes = dict(args), []
+    for key in schema.get("required", []):
+        if key in out:
+            continue
+        for alt in ARG_ALIASES.get(key, ()):
+            if alt in out and alt not in props:
+                out[key] = out.pop(alt)
+                notes.append(f"{alt}->{key}")
+                break
+    for key, p in props.items():
+        v, typ = out.get(key), p.get("type")
+        if typ == "array" and isinstance(v, str):
+            out[key] = [x.strip() for x in re.split(r"[,;]", v) if x.strip()] if key in LIST_OF_ADDRESSES else [v]
+            notes.append(f"{key}: text->list")
+        elif typ == "string" and isinstance(v, list) and v and all(isinstance(x, str) for x in v):
+            out[key] = ", ".join(v) if key in LIST_OF_ADDRESSES else "\n".join(v)
+            notes.append(f"{key}: list->text")
+        elif typ == "integer" and isinstance(v, str) and v.strip().isdigit():
+            out[key] = int(v)
+            notes.append(f"{key}: text->number")
+    return out, notes
+
+
 def assess_risk(tool: str, args: dict) -> Risk:
     risk = RISK_POLICY.get(tool, "high")  # unknown tools are high risk by default
     if tool == "create_note" and args.get("overwrite"):
