@@ -11,6 +11,7 @@ const safeHref = (u) => (/^(https?:|mailto:)/i.test(u) ? u : '#')
 
 function inline(s) {
   let h = esc(s)
+  h = h.replace(/&lt;br\s*\/?&gt;/gi, '<br />')   // models put <br> inside table cells for line breaks
   h = h.replace(/`([^`]+)`/g, '<code class="font-mono text-[0.8em] px-1 py-px bg-card border border-rule text-ink">$1</code>')
   h = h.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold text-ink">$1</strong>')
   h = h.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
@@ -55,7 +56,7 @@ export function Markdown({ text, className = '', onNote }) {
         const rows = []
         while (i < lines.length && /^\|.*\|/.test(lines[i])) rows.push(cell(lines[i++]))
         out.push(
-          '<div class="my-4 overflow-x-auto"><table class="w-auto min-w-[50%] text-[14px] border-t border-b border-rule2">'
+          '<div class="my-4 overflow-x-auto"><table class="w-full text-[14px] border-t border-b border-rule2">'
           + '<thead><tr>' + head.map((h) =>
             `<th class="text-left font-mono font-medium text-[9.5px] uppercase tracking-[0.1em] text-muted px-3 pt-2 pb-1.5 border-b border-rule2 whitespace-nowrap">${inline(h)}</th>`).join('')
           + '</tr></thead><tbody>'

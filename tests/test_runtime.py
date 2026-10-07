@@ -329,3 +329,18 @@ def test_plan_may_not_read_fields_of_generated_text():
     p = Plan.model_validate(plan([gen("s1"), tool("s2", "gmail_create_draft", to=["a@b.com"], subject="x", body="{{s1}}"),
                                   tool("s3", "gmail_send", to=["a@b.com"], subject="x", body="{{s1}}")]))
     assert any("Gmail draft" in e for e in validate_plan(p, {"gmail_send", "gmail_create_draft"}, 6, False, "mail a@b.com"))
+
+
+async def test_research_request_is_never_answered_from_memory(settings):
+    """gpt-oss-20b answered "Research top 3 AI agent frameworks" from memory, listing RAG as an agent framework.
+    An explicit research ask goes through tools even when the triage model says it can chat."""
+    chat = {"mode": "chat", "answer": "1. LangChain 2. LlamaIndex 3. RAG"}
+    llm = ScriptedLLM([chat, plan([], direct_answer="planned instead"), {"facts": []}])
+    async with Runtime(settings, llm) as rt:
+        d = await rt.run("Research top 3 AI Agent frameworks.")
+    assert d["answer"] == "planned instead"
+    tri = next(s for s in d["spans"] if s["name"] == "triage")
+    assert "research" in tri["attrs"]["overruled"]
+    from synapse.graph import needs_tools
+    assert needs_tools("What's the difference between RAG and fine-tuning?") is None
+    assert needs_tools("hi") is None and needs_tools("latest LangGraph release") and needs_tools("email it to me")

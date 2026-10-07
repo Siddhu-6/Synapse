@@ -258,6 +258,22 @@ def _norm(u: str) -> str:
     return u.rstrip(".,;:!?").split("#")[0].rstrip("/").lower().removeprefix("https://").removeprefix("http://").removeprefix("www.")
 
 
+# Goals that must go through tools, decided without a model call. A small model asked "chat or task?"
+# answered "Research top 3 AI agent frameworks" from memory and listed RAG as an agent framework.
+RESEARCH_ASK = re.compile(r"\b(research|search|look\s*up|google|browse|find\s+(out|the\s+latest|recent|current)|"
+                          r"latest|newest|trending|news|this\s+(week|month|year)|today'?s|right\s+now|"
+                          r"top\s+\d+|best\s+\d+|20[2-9]\d)\b|https?://", re.I)
+ACTION_ASK = re.compile(r"\b(send|e-?mail|mail\s+(it|this|me|to)|save|schedule|remind|book|delete|remove|"
+                        r"add\s+(it|this|that|these|to)|create\s+a?\s*(note|task|event|page|reminder)|"
+                        r"my\s+(notes?|vault|inbox|emails?|mails?|calendar|tasks?|schedule|notion))\b", re.I)
+
+
+def needs_tools(goal: str) -> str | None:
+    """Why this goal can't be answered from the model's own knowledge, or None if a model should decide."""
+    m = RESEARCH_ASK.search(goal) or ACTION_ASK.search(goal)
+    return f"asks for {m.group(0).strip().lower()!r}" if m else None
+
+
 def tidy_answer(text: str, goal: str, allowed_urls: set[str]) -> str:
     """Deterministic clean-up of the final answer, because prompts alone did not stop it:
     - links: keep only URLs that came out of a tool this run (pages actually fetched); models invent URLs
@@ -635,6 +651,12 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
             tri, calls = await structured(llm, msgs, Triage, retries=0, max_tokens=s.gen_max_tokens)
         except LLMError as e:
             return {"events": [_ev("triage", t0, error=str(e), mode="task")]}   # fall through to planning
+        need = needs_tools(state["goal"])
+        if tri.mode == "chat" and need:
+            # The user asked for research or an action; a small model still tried to answer from memory
+            # ("Research top 3 AI agent frameworks" -> listed RAG as an agent framework). Plan it instead.
+            return {"llm_calls": state.get("llm_calls", 0) + len(calls),
+                    "events": [_ev("triage", t0, calls, mode="task", overruled=need)]}
         if tri.mode == "chat" and (tri.answer or "").strip():
             return {"status": "success", "answer": tidy_answer(tri.answer.strip(), state["goal"], set()), "plan": None, "results": {},
                     "verification": {"passed": True, "problems": [], "checks": []},
