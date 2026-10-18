@@ -344,3 +344,13 @@ async def test_research_request_is_never_answered_from_memory(settings):
     from synapse.graph import needs_tools
     assert needs_tools("What's the difference between RAG and fine-tuning?") is None
     assert needs_tools("hi") is None and needs_tools("latest LangGraph release") and needs_tools("email it to me")
+
+
+def test_research_ask_needs_a_research_step():
+    """The planner answered "Top 3 ai agent frameworks" with a no-step direct answer: memory again, no sources."""
+    from synapse.graph import Plan, validate_plan
+    tools_ = {"web_search", "research", "generate"}
+    empty = Plan.model_validate(plan([], direct_answer="LangGraph, CrewAI, AutoGen"))
+    assert any("don't answer from memory" in e for e in validate_plan(empty, tools_, 6, False, "TOp 3 ai agent frameworks"))
+    assert not validate_plan(empty, tools_, 6, False, "What's the difference between RAG and fine-tuning?")
+    assert not validate_plan(empty, set(), 6, False, "top 3 ai agent frameworks")      # web disabled: allowed

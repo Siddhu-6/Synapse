@@ -53,8 +53,18 @@ export function Markdown({ text, className = '', onNote }) {
       if (/^\|.*\|/.test(line) && /^\|[\s:|-]+\|/.test(lines[i + 1] || '')) {
         const head = cell(line)
         i += 2
-        const rows = []
-        while (i < lines.length && /^\|.*\|/.test(lines[i])) rows.push(cell(lines[i++]))
+        // Rows are read line by line, but a model sometimes breaks a long cell across lines. A line that
+        // continues a row (the row hasn't closed with "|" or has too few cells) is joined back into it.
+        const raw = []
+        while (i < lines.length && lines[i].trim()) {
+          const ln = lines[i].trim()
+          const prev = raw[raw.length - 1]
+          if (ln.startsWith('|')) raw.push(ln)
+          else if (prev && (!prev.endsWith('|') || cell(prev).length < head.length)) raw[raw.length - 1] += '<br>' + ln
+          else break
+          i++
+        }
+        const rows = raw.map(cell)
         out.push(
           '<div class="my-4 overflow-x-auto"><table class="w-full text-[14px] border-t border-b border-rule2">'
           + '<thead><tr>' + head.map((h) =>

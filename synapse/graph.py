@@ -392,6 +392,9 @@ def validate_plan(plan: Plan, tool_names: set[str], max_steps: int, crew_enabled
             errs.append(f"{s.id}: kind={s.kind} only produces text and cannot act, but its description promises an action "
                         f"({s.description!r}). Use kind=tool with the right tool, or reword it as drafting text.")
         seen.append(s.id)
+    if not plan.steps and RESEARCH_ASK.search(goal) and {"web_search", "research"} & tool_names:
+        errs.append("the user asked for research or current information, so don't answer from memory: add a "
+                    "research(query) or web_search(query) step, then a generate step that uses what was found ({{s1}}).")
     if plan.steps and wants_save(goal) and not any(
             st.kind == "tool" and st.tool in WRITE_TOOLS for st in plan.steps):
         errs.append("the goal asks for something to be saved, so the plan MUST include a vault write tool "
