@@ -41,6 +41,8 @@ export const api = {
     req(`/runs/${id}/approve`, { method: 'POST', body: JSON.stringify({ approved, comment }) }),
   memory: () => req('/memory'),
   forget: (id) => req(`/memory/${id}`, { method: 'DELETE' }),
+  forgetEpisode: (runId) => req(`/memory/episodes/${encodeURIComponent(runId)}`, { method: 'DELETE' }),
+  forgetAllEpisodes: () => req('/memory/episodes', { method: 'DELETE' }),
   deleteConversation: (id) => req(`/conversations/${id}`, { method: 'DELETE' }),
   vaultGraph: () => req('/vault/graph'),
   note: (path) => req(`/vault/note?path=${encodeURIComponent(path)}`),

@@ -98,13 +98,15 @@ function Heading({ kicker, title, children }) {
 
 function Memory() {
   const [d, setD] = useState(null)
+  const [confirmAll, setConfirmAll] = useState(false)   // two clicks to clear: no browser dialogs
   const load = () => api.memory().then(setD).catch(() => setD({ facts: [], episodes: [] }))
   useEffect(() => { load() }, [])
   if (!d) return <p className="label">Loading…</p>
   return (
     <div className="max-w-[1000px] mx-auto">
       <Heading kicker="04 · Memory" title="What Synapse keeps">
-        Facts are kept only when they are about you and useful later. Past runs are kept so follow-ups have context.
+        Facts are kept only when they are about you and useful later. Past runs are kept so follow-ups have context;
+        forgetting one removes it from recall, while its trace stays in the journal.
       </Heading>
       <div className="grid lg:grid-cols-2 gap-10">
         <section aria-labelledby="facts-h">
@@ -123,17 +125,29 @@ function Memory() {
           </ul>
         </section>
         <section aria-labelledby="eps-h">
-          <h2 id="eps-h" className="label !text-ink border-b border-rule2 pb-2">Episodic · {d.episodes.length} runs</h2>
+          <div className="flex items-baseline justify-between border-b border-rule2 pb-2">
+            <h2 id="eps-h" className="label !text-ink">Episodic · {d.episodes.length} runs</h2>
+            {d.episodes.length > 0 && (
+              <button type="button" onBlur={() => setConfirmAll(false)}
+                onClick={() => (confirmAll ? api.forgetAllEpisodes().then(() => { setConfirmAll(false); load() }) : setConfirmAll(true))}
+                className={`btn-text ${confirmAll ? '!text-alert' : 'hover:!text-alert'}`}>
+                {confirmAll ? 'Click again to forget all' : 'Forget all'}
+              </button>
+            )}
+          </div>
           {d.episodes.length === 0 && <p className="py-3 text-muted">No runs yet.</p>}
           <ul>
             {d.episodes.map((e) => {
               let arts = []
               try { arts = JSON.parse(e.artifacts || '[]') || [] } catch { /* older rows */ }
               return (
-                <li key={e.run_id} className="py-2 hair">
+                <li key={e.run_id} className="group py-2 hair">
                   <div className="flex items-baseline gap-3">
                     <Mark state={e.status} />
-                    <span className="text-[14.5px] text-ink2 min-w-0">{e.goal}</span>
+                    <span className="text-[14.5px] text-ink2 min-w-0 flex-1">{e.goal}</span>
+                    <button type="button" onClick={() => api.forgetEpisode(e.run_id).then(load)}
+                      className="btn-text shrink-0 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 hover:!text-alert"
+                      aria-label={`Forget run: ${e.goal}`}>Forget</button>
                   </div>
                   {arts.length > 0 && <div className="font-mono text-[10px] text-muted mt-1 break-all">{arts.join(' · ')}</div>}
                 </li>

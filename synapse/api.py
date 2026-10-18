@@ -250,14 +250,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.delete("/api/conversations/{conversation_id}", **api)
     async def delete_conversation(conversation_id: str):
+        ids = [r[0] for r in rt().traces.db.execute("SELECT id FROM runs WHERE conversation_id=?", (conversation_id,))]
         n = rt().traces.delete_conversation(conversation_id)
         if not n:
             raise HTTPException(404, "no conversation with that id")
+        rt().memory.forget_episodes(ids)      # a deleted conversation must not keep coming back as "past runs"
         return {"ok": True, "deleted_runs": n}
 
     @app.get("/api/memory", **api)
     async def memory():
         return rt().memory.dump()
+
+    # Declared before /api/memory/{fact_id}: that route's int parameter would reject "episodes" with a 422.
+    @app.delete("/api/memory/episodes", **api)
+    async def forget_all_episodes():
+        return {"ok": True, "deleted": rt().memory.forget_episodes(None)}
+
+    @app.delete("/api/memory/episodes/{run_id}", **api)
+    async def forget_episode(run_id: str):
+        if not rt().memory.forget_episodes([run_id]):
+            raise HTTPException(404, "no past run with that id")
+        return {"ok": True}
 
     @app.delete("/api/memory/{fact_id}", **api)
     async def forget(fact_id: int):

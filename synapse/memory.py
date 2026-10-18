@@ -114,6 +114,18 @@ class Memory:
         self.db.commit()
         return cur.rowcount > 0
 
+    def forget_episodes(self, run_ids: list[str] | None = None) -> int:
+        """Drop past runs from episodic memory (all of them when run_ids is None). The run's trace stays in
+        the journal; it just stops being recalled as context for new goals."""
+        if run_ids is None:
+            cur = self.db.execute("DELETE FROM episodes")
+        elif not run_ids:
+            return 0
+        else:
+            cur = self.db.execute(f"DELETE FROM episodes WHERE run_id IN ({','.join('?' * len(run_ids))})", run_ids)
+        self.db.commit()
+        return cur.rowcount
+
     def dump(self) -> dict:
         return {"facts": [dict(r) | {"embedding": bool(r["embedding"])} for r in
                           self.db.execute("SELECT * FROM facts WHERE active=1 ORDER BY created_at DESC")],

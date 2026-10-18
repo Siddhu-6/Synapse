@@ -184,3 +184,39 @@ async def test_schedule_endpoints(settings):
     finally:
         await c.aclose()
         await mgr.__aexit__(None, None, None)
+
+
+async def test_episodes_can_be_forgotten_one_by_one_or_all(settings):
+    c, mgr = await client(settings, [SAVE, "Saved", {"mode": "task"}, SAVE, "Saved again"])
+    try:
+        a = (await c.post("/api/runs", json={"goal": "save a note about the API"})).json()["run_id"]
+        await wait_done(c, a)
+        b = (await c.post("/api/runs", json={"goal": "save another note about the API"})).json()["run_id"]
+        await wait_done(c, b)
+        eps = (await c.get("/api/memory")).json()["episodes"]
+        assert {e["run_id"] for e in eps} == {a, b}
+
+        assert (await c.delete(f"/api/memory/episodes/{a}")).status_code == 200
+        assert [e["run_id"] for e in (await c.get("/api/memory")).json()["episodes"]] == [b]
+        assert (await c.delete(f"/api/memory/episodes/{a}")).status_code == 404
+        assert (await c.get(f"/api/runs/{a}")).status_code == 200          # the trace is kept
+
+        assert (await c.delete("/api/memory/episodes")).json()["deleted"] == 1
+        assert (await c.get("/api/memory")).json()["episodes"] == []
+        assert (await c.delete("/api/memory/1")).status_code == 404           # fact route still works
+    finally:
+        await c.aclose()
+        await mgr.__aexit__(None, None, None)
+
+
+async def test_deleting_a_conversation_forgets_its_runs(settings):
+    c, mgr = await client(settings, [SAVE, "Saved"])
+    try:
+        rid = (await c.post("/api/runs", json={"goal": "save a note about the API", "conversation_id": "cv1"})).json()["run_id"]
+        await wait_done(c, rid)
+        assert (await c.get("/api/memory")).json()["episodes"]
+        assert (await c.delete("/api/conversations/cv1")).status_code == 200
+        assert (await c.get("/api/memory")).json()["episodes"] == []
+    finally:
+        await c.aclose()
+        await mgr.__aexit__(None, None, None)
