@@ -358,6 +358,7 @@ def test_health_flags_code_edited_after_start(tmp_path, monkeypatch):
 
 
 def test_crew_tools_correct_bad_args_cache_repeats_and_map_to_mcp():
+    pytest.importorskip("crewai")          # optional extra: `pip install -e ".[crew]"`
     from synapse.crew import Budget, make_tools
     calls = []
     b = Budget(3)

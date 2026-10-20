@@ -12,3 +12,4 @@ web/node_modules/
 .deploy_doc.rendered.html
 .DS_Store
 _to_delete/
+*.egg-info/
