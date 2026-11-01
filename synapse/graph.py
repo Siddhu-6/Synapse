@@ -102,6 +102,8 @@ class AgentState(TypedDict, total=False):
 REF = re.compile(r"\{\{\s*(s\d+)(?:\.([a-zA-Z_][\w]*))?\s*\}\}")
 SINGLE_REF = re.compile(r"(?<!\{)\{(s\d+(?:\.[a-zA-Z_]\w*)?)\}(?!\})")
 WRITE_TOOLS = {"create_note", "append_to_note", "update_note"}
+# tools whose text arguments are content the user will read: that text must come from a step, not the planner
+CONTENT_TOOLS = WRITE_TOOLS | {"gmail_send", "gmail_create_draft", "notion_create_page", "notion_append", "run_workflow"}
 
 
 ATTACH_PHRASE = re.compile(r"\b(attach(ed|ment|ments|ing)?|enclosed|see (the )?(file|note) below)\b", re.I)
@@ -392,6 +394,13 @@ def validate_plan(plan: Plan, tool_names: set[str], max_steps: int, crew_enabled
             errs.append(f"{s.id}: kind={s.kind} only produces text and cannot act, but its description promises an action "
                         f"({s.description!r}). Use kind=tool with the right tool, or reword it as drafting text.")
         seen.append(s.id)
+    for st in plan.steps:
+        if st.kind != "tool" or st.tool not in CONTENT_TOOLS:
+            continue
+        for key, val in (st.args or {}).items():
+            if isinstance(val, str) and len(val) >= 300 and "{{" not in val and val[:60] not in goal:
+                errs.append(f"{st.id}: {st.tool}.{key} holds {len(val)} characters written inside the plan. Write content "
+                            "in a generate step (from the sources it needs) and pass it with {{sN}}; the plan only wires steps.")
     if not plan.steps and RESEARCH_ASK.search(goal) and {"web_search", "research"} & tool_names:
         errs.append("the user asked for research or current information, so don't answer from memory: add a "
                     "research(query) or web_search(query) step, then a generate step that uses what was found ({{s1}}).")
@@ -561,6 +570,8 @@ PLANNER_RULES = """Rules:
   exact paths from "Notes that ALREADY EXIST" (or search_notes first if none are listed). No write step is needed.
   Deleted notes go to .trash and each delete needs the user's approval.
 - One note per deliverable: generate the content once, then write it once. Never add a second "save" step.
+- The plan only wires steps: never write the content itself (lists, emails, notes) inside tool args. A generate step
+  writes it from the sources, and later steps use {{sN}}. To email what was saved, use the note step's {{sN}}.
 - Keep step descriptions under 10 words. Do not restate the goal in every step.
 - At most ONE research step. Prefer 2-3 steps total; more steps means a slower, more fragile run.
 - For a question or explanation you can answer from your own knowledge with no tools or saving, return no steps and
@@ -583,6 +594,51 @@ PLANNER_RULES = """Rules:
 - {{sN.field}} only works for a field the tool really returns (e.g. {{s1.sha256}}). Generated text has no fields:
   use {{sN}}.
 - Keep the plan minimal. At most {max_steps} steps."""
+
+
+# ---------------- planner prompt diet ----------------
+# Every planning call pays for the whole prompt, and Groq's free tier allows ~8k tokens a minute. Tool groups and
+# rule bullets that can't matter for this goal are left out (hidden tools are still listed by name), which keeps a
+# plan to roughly half the tokens and out of rate-limit waits.
+TOOL_GROUPS = {   # server -> words that make it relevant (vault, research and world are always shown)
+    "google": r"mail|inbox|gmail|repl(y|ied)|sender|calendar|meeting|event|interview|appointment|invite|schedule",
+    "notion": r"notion",
+    "automation": r"whatsapp|slack|telegram|sms|workflow|n8n|automat|remind|notif|every\s+(day|week|morning|evening)|"
+                  r"daily|weekly|later|at\s+\d|schedule",
+    "tasks": r"task|to-?do|remind|deadline|pending|checklist",
+}
+RULE_TOPICS = [   # (how the bullet starts, words in the goal that make it relevant)
+    ("- Notion:", r"notion"),
+    ("- Automation:", TOOL_GROUPS["automation"]),
+    ("- Organising:", r"organi[sz]e|move|rename|folder|tag|file\s+(it|this|the)"),
+    ('- "Combine/merge', r"merge|combine|duplicate|consolidat"),
+    ("- To delete notes", r"delete|remove|trash|clean"),
+    ("- Latest emails", TOOL_GROUPS["google"]),
+    ("- If the user asks about a DIFFERENT mailbox", TOOL_GROUPS["google"]),
+    ("- Replies and conversations", TOOL_GROUPS["google"]),
+    ("- Briefings and summaries", r"weather|task|calendar|inbox|mail|brief|agenda|summar|morning|today"),
+    ("- Emails are plain text", r"mail|send"),
+]
+
+
+def planner_catalog(tools: Toolbox, topic: str) -> tuple[list[dict], list[str]]:
+    """(tools shown with arguments, names of the rest). A hidden tool can still be used by name."""
+    shown, hidden = [], []
+    for spec in tools.specs.values():
+        rx = TOOL_GROUPS.get(spec.server)
+        (shown if rx is None or re.search(rx, topic, re.I) else hidden).append(spec)
+    return [x.catalog_entry() for x in shown], [x.name for x in hidden]
+
+
+def trim_rules(rules: str, topic: str) -> str:
+    out, keep = [], True
+    for line in rules.split("\n"):
+        if line.startswith("- "):
+            rx = next((rx for start, rx in RULE_TOPICS if line.startswith(start)), None)
+            keep = rx is None or bool(re.search(rx, topic, re.I))
+        if keep:
+            out.append(line)
+    return "\n".join(out)
 
 
 # ---------------- graph ----------------
@@ -697,9 +753,13 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
                         + f"web search: {'yes' if caps.get('web') else 'no'}.\n"
                         + "If the user asks for something whose integration is not configured, do NOT plan tool steps for it: "
                         + "return no steps and explain in direct_answer what needs configuring.\n")
+        topic = " ".join([state["goal"], *(h.get("goal", "") for h in hist[-2:])])
+        shown, hidden = planner_catalog(tools, topic)
         system = ("You are Synapse, a personal AI assistant that plans and executes tasks. " + now_line() + "\n"
                   + cap_line
-                  + f"Tools:\n{json.dumps(tools.catalog(), separators=(',', ':'))}\n" + planner_rules.replace("{max_steps}", str(s.max_steps)))
+                  + f"Tools:\n{json.dumps(shown, separators=(',', ':'))}\n"
+                  + (f"Also available (same rules; ask for their arguments only if needed): {', '.join(hidden)}\n" if hidden else "")
+                  + trim_rules(planner_rules, topic).replace("{max_steps}", str(s.max_steps)))
         mem = state.get("memory") or {}
         user = ""
         if state.get("history"):
@@ -947,7 +1007,12 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
                     ev["tool_call"] = {"tool": tr.tool, "ok": tr.ok, "latency_ms": tr.latency_ms, "attempts": tr.attempts,
                                        "error": tr.error, "args": {k: (v[:200] + "…" if isinstance(v, str) and len(v) > 200 else v) for k, v in args.items()}}
                     if tr.ok:
-                        results[st.id] = {**base, "status": "ok", "tool": st.tool, "output": tr.data}
+                        out = tr.data
+                        if st.tool in WRITE_TOOLS and isinstance(out, dict) and isinstance(args.get("content"), str):
+                            out = {**out, "content": args["content"]}   # "email the note" -> the note's text
+                            if t:
+                                tainted.add(st.id)                      # web-derived text stays marked as such
+                        results[st.id] = {**base, "status": "ok", "tool": st.tool, "output": out}
                         if st.tool in G.UNTRUSTED_TOOLS:
                             tainted.add(st.id)
                             flags = G.scan_injection(output_text(tr.data))

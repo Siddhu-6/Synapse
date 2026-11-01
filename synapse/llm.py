@@ -217,6 +217,9 @@ class FallbackLLM:
                     if e.status != 429 or e.retry_after is None or e.retry_after > self.MAX_WAIT:
                         raise
                     log.info("rate limited; waiting %.1fs for the hosted model", e.retry_after)
+                    hook = WAIT_HOOK.get()
+                    if hook:
+                        hook(e.retry_after)
                     await asyncio.sleep(e.retry_after + 0.3)
                     return await self.fast.chat(messages, json_schema, max_tokens, on_token=on_token)
             except LLMError as e:
@@ -237,6 +240,8 @@ class FallbackLLM:
 
 # ---------------- the model router (what the graph and dashboard use) ----------------
 RUN_MODEL: contextvars.ContextVar[str | None] = contextvars.ContextVar("synapse_run_model", default=None)
+# Called with the seconds left before a rate-limited call is retried, so the dashboard can say why it paused.
+WAIT_HOOK: contextvars.ContextVar = contextvars.ContextVar("synapse_wait_hook", default=None)
 NON_CHAT = re.compile(r"whisper|tts|guard|playai|orpheus|embed|distil|audio|transcri|moderation", re.I)
 
 

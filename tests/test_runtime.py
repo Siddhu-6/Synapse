@@ -370,3 +370,56 @@ async def test_web_content_is_added_to_a_note_instead_of_overwriting_it(settings
     body = (settings.vault_path / "Jobs.md").read_text()
     assert "- old lead" in body and "AI Engineer at Acme" in body          # nothing lost, new list added
     assert d["status"] == "success" and ap.seen and ap.seen[0]["tool"] == "append_to_note"
+
+
+async def test_planner_sees_only_tools_and_rules_for_this_goal(settings):
+    """Every plan pays for its prompt, and the free tier is ~8k tokens a minute: irrelevant tool groups and rule
+    bullets are left out (hidden tools are still named)."""
+    llm = ScriptedLLM([TASK, plan([gen("s1", "Explain")]), "LangGraph is a graph runtime."])
+    async with Runtime(settings, llm) as rt:
+        await rt.run("Explain LangGraph checkpoints in depth")
+    lean = next(m["content"] for c in llm.calls for m in c if "plans and executes" in m["content"])
+    assert "run_workflow(name, payload)" not in lean and "Latest emails" not in lean and "add_task" in lean.split("Also available")[1]
+    llm = ScriptedLLM([TASK, plan([gen("s1", "Write")]), "x"])
+    async with Runtime(settings, llm) as rt:
+        await rt.run("Remind me every day at 9 to revise DBMS")
+    full = next(m["content"] for c in llm.calls for m in c if "plans and executes" in m["content"])
+    assert "run_workflow" in full.split("Also available")[0] and len(lean) < len(full)
+
+
+def test_plan_may_not_carry_the_content_itself():
+    from synapse.graph import Plan, validate_plan
+    listing = "1. Google India - AI Engineer, Bengaluru. " * 12
+    p = Plan.model_validate(plan([tool("s1", "research", query="ai jobs"),
+                                  tool("s2", "create_note", path="Jobs.md", content=listing)]))
+    assert any("written inside the plan" in e for e in validate_plan(p, {"research", "create_note"}, 6, False, "find jobs, save them"))
+    quoted = "Remember this exactly: " + "my notes on DBMS normal forms. " * 12
+    p = Plan.model_validate(plan([tool("s1", "create_note", path="DBMS.md", content=quoted)]))
+    assert not validate_plan(p, {"create_note"}, 6, False, "save this: " + quoted)       # the user's own words
+
+
+async def test_emailing_what_was_saved_uses_the_note_text(settings):
+    """{{s2.content}} on a create_note step used to be unfillable; the note step now carries what it wrote."""
+    settings.vault_path.mkdir(parents=True)
+    p = plan([gen("s1", "List 3 roles"), tool("s2", "create_note", path="Jobs.md", content="{{s1}}"),
+              tool("s3", "create_note", path="Copy.md", content="{{s2.content}}")])
+    d, _ = await run(settings, [p, "- Role A\n- Role B\n- Role C", "Saved both."], "list 3 roles and save them twice",
+                     approve(True))
+    assert d["status"] == "success" and "Role B" in (settings.vault_path / "Copy.md").read_text()
+
+
+async def test_rate_limit_pause_is_reported_to_the_dashboard():
+    from synapse.llm import WAIT_HOOK, FallbackLLM, LLMError, LLMResponse
+    seen = []
+
+    class Limited:
+        n = 0
+
+        async def chat(self, *a, **k):
+            Limited.n += 1
+            if Limited.n == 1:
+                raise LLMError("429", 429, retry_after=0.01)
+            return LLMResponse(text="ok", provider="groq", model="m", latency_ms=1)
+    WAIT_HOOK.set(seen.append)
+    r = await FallbackLLM(Limited(), None).chat([{"role": "user", "content": "x"}])
+    assert r.text == "ok" and seen == [0.01]

@@ -17,7 +17,7 @@ from langgraph.types import Command
 
 from .config import Settings
 from .graph import build_graph, output_text
-from .llm import LLM, RUN_MODEL, build_llm
+from .llm import LLM, RUN_MODEL, WAIT_HOOK, build_llm
 from .memory import Embedder, Memory
 from .scheduler import Scheduler
 from .tools import Toolbox
@@ -34,6 +34,7 @@ class Runtime:
         self._subs: dict[str, set[asyncio.Queue]] = {}
         self._tasks: dict[str, asyncio.Task] = {}
         self._run_model: dict[str, str] = {}   # run -> model id it started with
+        self._stage: dict[str, str] = {}       # run -> stage it is in (for "paused by a rate limit" notices)
         self._loop: asyncio.AbstractEventLoop | None = None
 
     async def __aenter__(self):
@@ -77,6 +78,8 @@ class Runtime:
         self._publish(run_id, msg)
 
     def _publish(self, run_id: str, msg: dict) -> None:
+        if msg.get("type") == "progress" and msg.get("stage"):
+            self._stage[run_id] = msg["stage"]
         for q in list(self._subs.get(run_id, ())) + list(self._subs.get("*", ())):
             try:
                 q.put_nowait({"run_id": run_id, **msg})
@@ -93,6 +96,9 @@ class Runtime:
         # (This task has its own context, so the value is local to this run.)
         if self._run_model.get(run_id):
             RUN_MODEL.set(self._run_model[run_id])
+        WAIT_HOOK.set(lambda secs: self._emit(run_id, {
+            "type": "progress", "stage": self._stage.get(run_id),
+            "description": f"Free-tier rate limit reached; continuing in {round(secs)}s"}))
         try:
             async for chunk in self.graph.astream(inp, cfg, stream_mode="updates"):
                 for node, upd in chunk.items():
