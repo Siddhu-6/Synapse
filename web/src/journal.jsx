@@ -157,6 +157,19 @@ function Plan({ run, live }) {
 
 /* ── entry ────────────────────────────────────────────────────────────────── */
 
+/** Stops a run where it is: the server cancels it and the stream reports it as stopped. */
+function StopButton({ runId }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button type="button" disabled={busy} title="Stop this run"
+      onClick={async () => { setBusy(true); try { await api.cancel(runId) } catch { setBusy(false) } }}
+      className="ml-auto inline-flex items-center gap-1.5 font-mono font-medium text-[9.5px] uppercase tracking-[0.08em]
+        px-2 py-0.5 border border-rule2 text-muted hover:text-alert hover:border-alert disabled:opacity-50">
+      <span aria-hidden="true" className="inline-block w-[7px] h-[7px] bg-current" />{busy ? 'stopping' : 'stop'}
+    </button>
+  )
+}
+
 /** The answer text, typed out. It lives in its own component so typing re-renders only the text,
  *  not the plan and trace around it. */
 function Typed({ text, enabled, onNote, cursor }) {
@@ -197,6 +210,7 @@ export function Entry({ turn, detail, index, selected, justFinished, live, draft
         <span className="label !text-ink num">Run {String(index).padStart(2, '0')}</span>
         <Mark state={r.pending ? 'awaiting_approval' : status} />
         {running && r.created_at && <Elapsed from={r.created_at} />}
+        {(running || r.pending) && <StopButton runId={turn.id} />}
         {r.created_at && !running && <span className="label !text-faint num">
           {new Date(r.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
       </div>

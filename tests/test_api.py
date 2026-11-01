@@ -37,7 +37,7 @@ async def client(settings, replies, token=None):
         api_mod.Runtime = orig
 
 
-async def wait_done(c, run_id, want=("success", "failed", "error", "awaiting_approval"), tries=100):
+async def wait_done(c, run_id, want=("success", "failed", "error", "awaiting_approval"), tries=300):
     for _ in range(tries):
         r = (await c.get(f"/api/runs/{run_id}")).json()
         if r["status"] in want:

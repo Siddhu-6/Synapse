@@ -127,6 +127,8 @@ class Runtime:
                          "tool_calls": sum(1 for sp in spans if sp["attrs"].get("tool_call"))}
                 self.traces.update_run(run_id, status=v.get("status", "failed"), answer=v.get("answer"), stats=stats, pending=None)
                 self._publish(run_id, {"type": "done", "status": v.get("status"), "answer": v.get("answer"), "stats": stats})
+        except asyncio.CancelledError:
+            return                               # stopped by the user; cancel() already recorded it
         except Exception as e:
             self.traces.add_span(run_id, {"node": "error", "ts": time.time(), "error": f"{type(e).__name__}: {e}"})
             self.traces.update_run(run_id, status="error", answer=f"Internal error: {type(e).__name__}: {e}", pending=None)
@@ -180,6 +182,19 @@ class Runtime:
                                       "tool": run["pending"].get("tool"), "step": run["pending"].get("step")})
         self.traces.update_run(run_id, status="running", pending=None)
         self._spawn(run_id, Command(resume={"approved": approved, "comment": comment}))
+
+    def cancel(self, run_id: str) -> None:
+        """Stop a run now: a working run's task is cancelled, a run waiting for approval is closed."""
+        run = self.traces.get_run(run_id)
+        if not run or run["status"] not in ("running", "awaiting_approval"):
+            raise ValueError("run is not active")
+        t = self._tasks.get(run_id)
+        if t:
+            t.cancel()
+        self.traces.add_span(run_id, {"node": "stopped", "ts": time.time(), "by": "user"})
+        self.traces.update_run(run_id, status="cancelled", answer="Stopped. Nothing after this point was done.",
+                               pending=None)
+        self._publish(run_id, {"type": "done", "status": "cancelled", "answer": "Stopped. Nothing after this point was done."})
 
     async def run(self, goal: str, approver: Approver | None = None, conversation_id: str = "") -> dict:
         """Run to completion (CLI/evals). Approvals go to `approver`; with none, risky actions are rejected."""

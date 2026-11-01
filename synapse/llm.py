@@ -138,6 +138,11 @@ class OpenAICompatLLM:
         self.base_url, self.key, self.model, self.timeout = base_url.rstrip("/"), api_key, model, timeout
         self.provider, self.reasoning_effort = provider, reasoning_effort
 
+    def think_room(self) -> int:
+        """Extra tokens for a reasoning model's thinking. Kept tight on purpose: Groq counts the max_tokens a
+        request DECLARES against the 8k-a-minute free tier, so a generous ceiling rate-limits a fresh minute."""
+        return {"low": 384, "medium": 1024}.get(self.reasoning_effort or "", 2048)
+
     async def chat(self, messages, json_schema=None, max_tokens=None, on_token: OnToken | None = None):
         payload = {"model": self.model, "messages": messages, "temperature": 0.1}
         if "gpt-oss" in self.model and self.reasoning_effort:
@@ -145,7 +150,7 @@ class OpenAICompatLLM:
             # forced a minute-long wait or a fall back to the local model mid-run.
             payload["reasoning_effort"] = self.reasoning_effort
         if max_tokens:
-            payload["max_tokens"] = max_tokens + (2048 if REASONING.search(self.model) else 0)
+            payload["max_tokens"] = max_tokens + (self.think_room() if REASONING.search(self.model) else 0)
         if json_schema:
             payload["response_format"] = {"type": "json_object"}
         stream = bool(on_token) and not json_schema

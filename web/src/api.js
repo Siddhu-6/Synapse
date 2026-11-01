@@ -37,6 +37,7 @@ export const api = {
   run: (id) => req(`/runs/${id}`),
   start: (goal, conversation_id = '') =>
     req('/runs', { method: 'POST', body: JSON.stringify({ goal, conversation_id }), timeout: 15000 }),
+  cancel: (id) => req(`/runs/${id}/cancel`, { method: 'POST' }),
   approve: (id, approved, comment = '') =>
     req(`/runs/${id}/approve`, { method: 'POST', body: JSON.stringify({ approved, comment }) }),
   memory: () => req('/memory'),

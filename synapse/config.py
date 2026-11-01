@@ -23,8 +23,9 @@ class Settings(BaseSettings):
     num_ctx: int = 8192              # Ollama context window; larger = slower prompt processing
     keep_alive: str = "30m"          # keep the model resident between calls (avoids reload stalls)
     reasoning_effort: Literal["low", "medium", "high"] | None = "low"   # gpt-oss thinking budget (hosted)
-    plan_max_tokens: int = 700
-    gen_max_tokens: int = 1200
+    plan_max_tokens: int = 900
+    gen_max_tokens: int = 1600
+    answer_max_tokens: int = 900     # the closing summary of a run
 
     vault_path: Path = Path("./SynapseVault")
     data_dir: Path = Path("./data")

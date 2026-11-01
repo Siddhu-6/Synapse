@@ -190,6 +190,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(404, "unknown run")
         return d
 
+    @app.post("/api/runs/{run_id}/cancel", **api)
+    async def cancel(run_id: str):
+        try:
+            rt().cancel(run_id)
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from e
+        return {"ok": True}
+
     @app.post("/api/runs/{run_id}/approve", **api)
     async def approve(run_id: str, d: Decision):
         try:

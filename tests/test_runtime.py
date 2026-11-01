@@ -423,3 +423,52 @@ async def test_rate_limit_pause_is_reported_to_the_dashboard():
     WAIT_HOOK.set(seen.append)
     r = await FallbackLLM(Limited(), None).chat([{"role": "user", "content": "x"}])
     assert r.text == "ok" and seen == [0.01]
+
+
+async def test_stop_cancels_a_running_run_and_the_next_run_still_works(settings):
+    """There was no way to stop a run stuck waiting on a rate limit."""
+    import asyncio
+
+    class Slow(ScriptedLLM):
+        async def chat(self, messages, json_schema=None, max_tokens=None):
+            if any("plans and executes" in m.get("content", "") for m in messages):
+                await asyncio.sleep(30)                       # e.g. a long rate-limit wait
+            return await super().chat(messages, json_schema, max_tokens)
+
+    llm = Slow([TASK, plan([gen("s1")]), "unused", TASK, plan([tool("s1", "list_notes")]), "Listed."])
+    async with Runtime(settings, llm) as rt:
+        rid = rt.start("summarize my week")
+        for _ in range(100):
+            await asyncio.sleep(0.05)
+            if any(c for c in llm.calls if any("plans and executes" in m.get("content", "") for m in c)):
+                break
+        rt.cancel(rid)
+        await asyncio.sleep(0.1)
+        assert rt.traces.get_run(rid)["status"] == "cancelled" and rid not in rt._tasks
+        llm.replies = [TASK, plan([tool("s1", "list_notes")]), "Listed.", {"facts": []}]
+        Slow.chat = ScriptedLLM.chat                            # the next run is not slow
+        d = await rt.run("list my notes")
+        assert d["status"] == "success", d.get("answer")
+
+
+async def test_a_tool_call_cut_off_midway_leaves_the_server_usable(settings):
+    """Stopping a run can interrupt an MCP call in flight; the session must keep working afterwards."""
+    import asyncio
+    async with Runtime(settings, ScriptedLLM([])) as rt:
+        session = rt.tools._sessions[rt.tools.specs["list_notes"].server]
+        try:
+            await asyncio.wait_for(session.call_tool("list_notes", {}), timeout=0.0001)
+        except TimeoutError:
+            pass
+        r = await rt.tools.call("list_notes", {})
+        assert r.ok
+
+
+def test_declared_token_ceiling_stays_inside_the_free_tier():
+    """Groq counts the max_tokens a request declares: triage + plan used to declare ~6k before any prompt."""
+    from synapse.config import Settings as S
+    from synapse.llm import OpenAICompatLLM
+    s = S(_env_file=None)
+    m = OpenAICompatLLM("http://x/v1", "k", "openai/gpt-oss-120b", 10, reasoning_effort=s.reasoning_effort)
+    triage, plan_ = s.gen_max_tokens + m.think_room(), s.plan_max_tokens + m.think_room()
+    assert triage + plan_ + 4500 < 8000          # + roughly the two prompts

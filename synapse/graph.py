@@ -1155,7 +1155,7 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
                                               "Mention saved note paths. " + G.UNTRUSTED_SYSTEM_NOTE},
                 {"role": "user", "content": f"Goal: {state['goal']}\nOutcome: {status}\nProblems: {v.get('problems')}\n"
                                             f"Saved notes: {artifacts}\nStep results:\n" + "\n".join(detail)}],
-                on_token=streamer(live, state, stage="respond", final=True))
+                max_tokens=s.answer_max_tokens, on_token=streamer(live, state, stage="respond", final=True))
             answer, calls = tidy_answer(r.text, state["goal"], run_urls(results)), [r]
         except LLMError as e:  # deterministic fallback: never lose the outcome
             answer, calls = f"**Status: {status}**\n\n{_status_lines(results)}\n\n_(summary unavailable: {e})_", []

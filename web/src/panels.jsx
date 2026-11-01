@@ -11,7 +11,8 @@ const TOKEN = {
 }
 export const C = Object.fromEntries(Object.entries(TOKEN).map(([k, v]) => [k, css(v)]))
 const BAD = ['failed', 'error', 'rejected', 'blocked']
-const WORD = { awaiting_approval: 'needs you', waiting: 'needs you', ok: 'done', success: 'done', running: 'working' }
+const WORD = { awaiting_approval: 'needs you', waiting: 'needs you', ok: 'done', success: 'done', running: 'working',
+  cancelled: 'stopped' }
 
 export const fmt = (ms) =>
   ms == null ? '—' : ms > 60000 ? `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`
@@ -23,7 +24,8 @@ export const Dot = ({ c, size = 6 }) => (
 
 /** Drawn, not typed: unicode status glyphs fall back to whatever font the OS has. */
 export function Glyph({ state = 'idle', size = 9 }) {
-  const s = state === 'success' ? 'ok' : state === 'awaiting_approval' ? 'waiting' : BAD.includes(state) && state !== 'blocked' ? 'failed' : state
+  const s = state === 'success' ? 'ok' : state === 'awaiting_approval' ? 'waiting' : state === 'cancelled' ? 'skipped'
+    : BAD.includes(state) && state !== 'blocked' ? 'failed' : state
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" aria-hidden="true" className={`shrink-0 ${s === 'running' ? 'animate-blink' : ''}`}
       fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square">
