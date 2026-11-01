@@ -11,6 +11,7 @@ dependencies = [
   "pydantic-settings>=2.6",
   "jsonschema>=4.23",
   "ddgs>=9.0",            # keyless multi-backend web search
+  "json-repair>=0.30",    # fixes unescaped quotes etc. in model JSON instead of failing the plan
   "langgraph-checkpoint-sqlite>=2.0",
   "fastapi>=0.115",
   "uvicorn[standard]>=0.32",

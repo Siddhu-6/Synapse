@@ -414,3 +414,16 @@ async def test_rate_limit_wait_of_half_a_minute_still_beats_local_planning(monke
     monkeypatch.setattr(L.asyncio, "sleep", fake_sleep)
     r = await FallbackLLM(Limited(), Local()).chat([{"role": "user", "content": "x"}])
     assert r.text == "fast" and seen and seen[0] > 31
+
+
+async def test_unescaped_quotes_in_a_plan_are_repaired_without_another_call():
+    """gpt-oss wrote 'titled "AI Topics to Learn"' inside a JSON string; both attempts failed and the run died."""
+    from synapse.graph import Plan
+    from synapse.llm import structured
+    from tests.conftest import ScriptedLLM
+    bad = ('{"intent":"x","deliverable":"y","reasoning":"r","steps":[{"id":"s1","kind":"generate",'
+           '"description":"Write","prompt":"Write a note titled "AI Topics to Learn" with one fact each"}],'
+           '"direct_answer":null}')
+    llm = ScriptedLLM([bad])
+    p, calls = await structured(llm, [{"role": "user", "content": "plan"}], Plan)
+    assert len(calls) == 1 and '"AI Topics to Learn"' in p.steps[0].prompt

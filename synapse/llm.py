@@ -23,6 +23,11 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel, ValidationError
 
+try:
+    from json_repair import repair_json
+except ImportError:          # optional: without it, malformed JSON falls back to asking the model again
+    repair_json = None
+
 from .config import Settings
 
 log = logging.getLogger("synapse.llm")
@@ -404,6 +409,21 @@ def _extract_json(text: str) -> str:
 T = TypeVar("T", bound=BaseModel)
 
 
+def _loads(text: str):
+    """Parse model JSON. gpt-oss often writes unescaped quotes inside strings (prompt: 'save as "AI Topics"'),
+    which failed whole plans twice in a row; a repair pass fixes those without another model call."""
+    raw = _extract_json(text)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        if repair_json is None:
+            raise
+        fixed = repair_json(raw, return_objects=True)
+        if not isinstance(fixed, dict) or not fixed:
+            raise
+        return fixed
+
+
 async def structured(llm: LLM, messages: list[dict], model: type[T], retries: int = 1,
                max_tokens: int | None = None) -> tuple[T, list[LLMResponse]]:
     """Ask for JSON matching `model`. On malformed output, feed the error back and retry (bounded)."""
@@ -414,7 +434,7 @@ async def structured(llm: LLM, messages: list[dict], model: type[T], retries: in
         resp = await llm.chat(msgs, json_schema=schema, max_tokens=max_tokens)
         calls.append(resp)
         try:
-            return model.model_validate(json.loads(_extract_json(resp.text))), calls
+            return model.model_validate(_loads(resp.text)), calls
         except (json.JSONDecodeError, ValidationError) as e:
             last_err = str(e)[:800]
             msgs += [{"role": "assistant", "content": resp.text},
