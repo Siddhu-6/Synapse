@@ -708,7 +708,7 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
                 f"USER: {h['goal']}\nSYNAPSE: {(h['answer'] or '')[:300]}" for h in state["history"][-3:])})
         msgs.append({"role": "user", "content": state["goal"]})
         try:
-            tri, calls = await structured(llm, msgs, Triage, retries=0, max_tokens=s.gen_max_tokens)
+            tri, calls = await structured(llm, msgs, Triage, retries=0, max_tokens=s.chat_max_tokens)
         except LLMError as e:
             return {"events": [_ev("triage", t0, error=str(e), mode="task")]}   # fall through to planning
         need = needs_tools(state["goal"])

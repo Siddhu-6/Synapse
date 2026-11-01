@@ -64,7 +64,7 @@ async def test_malformed_json_retry_and_clean_failure(settings):
     d, _ = await run(settings, ["not json {", SAVE, "t" * 30, "ok"])
     assert d["status"] == "success"
     d, _ = await run(settings, ["garbage", "garbage", "garbage", "garbage"])
-    assert d["status"] == "failed" and "Malformed" in d["answer"]
+    assert d["status"] == "failed" and "malformed" in d["answer"]
 
 
 async def test_hil_approve_executes_destructive_action(settings):
@@ -470,5 +470,5 @@ def test_declared_token_ceiling_stays_inside_the_free_tier():
     from synapse.llm import OpenAICompatLLM
     s = S(_env_file=None)
     m = OpenAICompatLLM("http://x/v1", "k", "openai/gpt-oss-120b", 10, reasoning_effort=s.reasoning_effort)
-    triage, plan_ = s.gen_max_tokens + m.think_room(), s.plan_max_tokens + m.think_room()
+    triage, plan_ = s.chat_max_tokens + m.think_room(), s.plan_max_tokens + m.think_room()
     assert triage + plan_ + 4500 < 8000          # + roughly the two prompts

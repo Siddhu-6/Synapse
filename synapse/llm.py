@@ -479,13 +479,24 @@ async def structured(llm: LLM, messages: list[dict], model: type[T], retries: in
     schema = inline_schema(model)
     msgs = [{"role": "system", "content": "Respond with JSON only, matching this JSON schema:\n" + json.dumps(schema)}, *messages]
     calls, last_err = [], ""
-    for _ in range(retries + 1):
-        resp = await llm.chat(msgs, json_schema=schema, max_tokens=max_tokens)
+    for attempt in range(retries + 1):
+        # a second try gets more room: the usual cause of broken JSON is an answer cut off at max_tokens
+        cap = int(max_tokens * 1.6) if max_tokens and attempt else max_tokens
+        resp = await llm.chat(msgs, json_schema=schema, max_tokens=cap)
         calls.append(resp)
         try:
             return model.model_validate(_loads(resp.text)), calls
         except (json.JSONDecodeError, ValidationError) as e:
-            last_err = str(e)[:800]
+            last_err = _short_error(e)
             msgs += [{"role": "assistant", "content": resp.text},
-                     {"role": "user", "content": f"That output was invalid: {last_err}\nReturn corrected JSON only."}]
-    raise LLMError(f"Malformed model output after {retries + 1} attempts: {last_err}")
+                     {"role": "user", "content": f"That output was invalid: {last_err}\nReturn the complete, corrected JSON only."}]
+    raise LLMError(f"the model's answer was incomplete or malformed twice ({last_err}). Please try again.")
+
+
+def _short_error(e: Exception) -> str:
+    """One readable line instead of pydantic's multi-paragraph dump (it was shown to the user verbatim)."""
+    if isinstance(e, ValidationError):
+        errs = e.errors()
+        where = ".".join(str(x) for x in errs[0]["loc"]) if errs else "?"
+        return f"{len(errs)} problem(s), first at {where}: {errs[0]['msg'] if errs else e}"
+    return str(e)[:300]

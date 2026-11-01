@@ -493,3 +493,29 @@ def test_router_pairs_gpt_oss_models_as_backups(tmp_path, server):
     r = ModelRouter(s)
     c = r._client(f"{r.remote[0]}:openai/gpt-oss-120b")
     assert isinstance(c, FallbackLLM) and c.backup.model == "openai/gpt-oss-20b"
+
+
+async def test_cut_off_plan_is_retried_with_more_room():
+    """A plan cut off at max_tokens was 'repaired' into a half step and failed twice; the retry now gets more
+    room, and the error a user sees is one readable line."""
+    from synapse.graph import Plan
+    from synapse.llm import LLMResponse, structured
+    full = '{"intent":"x","deliverable":"y","reasoning":"r","steps":[{"id":"s1","kind":"generate","description":"d","prompt":"p"}]}'
+
+    class Cut:
+        caps = []
+
+        async def chat(self, messages, json_schema=None, max_tokens=None):
+            Cut.caps.append(max_tokens)
+            text = full if max_tokens and max_tokens > 1000 else full[:70] + ',{"tool":null,"args":{},"prompt":null'
+            return LLMResponse(text=text, provider="t", model="t", latency_ms=1)
+
+    p, calls = await structured(Cut(), [{"role": "user", "content": "plan"}], Plan, max_tokens=900)
+    assert len(calls) == 2 and Cut.caps == [900, 1440] and p.steps[0].id == "s1"
+
+    class Broken:
+        async def chat(self, *a, **k):
+            return LLMResponse(text='{"steps":[{"tool":null}]}', provider="t", model="t", latency_ms=1)
+    with pytest.raises(LLMError) as e:
+        await structured(Broken(), [{"role": "user", "content": "plan"}], Plan, max_tokens=900)
+    assert "pydantic" not in str(e.value) and "try again" in str(e.value)

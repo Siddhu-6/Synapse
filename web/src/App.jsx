@@ -376,10 +376,8 @@ export default function App() {
   useEffect(() => {
     api.health().then(setHealth).catch((e) => { if (e.status === 401) setLocked(true); else setHealth({ ok: false }) })
     api.conversations().then((d) => setConvos(d.conversations)).catch(() => {})
-    api.runs().then((d) => {
-      setRuns(d.runs)
-      if (d.runs[0]) openConversation(d.runs[0].conversation_id, d.runs)   // resume where you left off
-    }).catch((e) => { if (e.status === 401) setLocked(true) })
+    // Opening Synapse starts a fresh conversation; earlier ones are one click away in the sidebar.
+    api.runs().then((d) => setRuns(d.runs)).catch((e) => { if (e.status === 401) setLocked(true) })
 
     const es = api.stream('*', (msg) => {
       const mine = msg.run_id && msg.run_id === followRef.current
