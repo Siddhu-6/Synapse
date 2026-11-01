@@ -427,3 +427,69 @@ async def test_unescaped_quotes_in_a_plan_are_repaired_without_another_call():
     llm = ScriptedLLM([bad])
     p, calls = await structured(llm, [{"role": "user", "content": "plan"}], Plan)
     assert len(calls) == 1 and '"AI Topics to Learn"' in p.steps[0].prompt
+
+
+async def test_rate_limited_model_hands_over_to_its_sibling_instead_of_waiting(monkeypatch):
+    """gpt-oss-120b kept hitting the free-tier limit mid-demo. Groq limits each model separately, so the
+    run switches to gpt-oss-20b at once instead of waiting or dropping to the slow local model."""
+    import synapse.llm as L
+    from synapse.llm import WAIT_HOOK, LLMResponse
+    slept, notes = [], []
+
+    async def fake_sleep(sec):
+        slept.append(sec)
+    monkeypatch.setattr(L.asyncio, "sleep", fake_sleep)
+
+    class Big:
+        model, n = "openai/gpt-oss-120b", 0
+
+        async def chat(self, *a, **k):
+            Big.n += 1
+            raise LLMError("groq HTTP 429: tokens per day (TPD)", 429, retry_after=600)
+
+    class Small:
+        model = "openai/gpt-oss-20b"
+
+        async def chat(self, *a, **k):
+            return LLMResponse(text="from 20b", provider="groq", model=self.model, latency_ms=1)
+
+    class Local:
+        async def chat(self, *a, **k):
+            raise AssertionError("should not need the local model")
+
+    WAIT_HOOK.set(lambda secs, note=None: notes.append(note))
+    f = FallbackLLM(Big(), Local(), backup=Small())
+    r = await f.chat([{"role": "user", "content": "x"}])
+    assert r.text == "from 20b" and not slept and "gpt-oss-20b" in notes[0]
+    r = await f.chat([{"role": "user", "content": "y"}])          # the limited model is skipped while paused
+    assert r.text == "from 20b" and Big.n == 1
+
+
+async def test_both_models_limited_waits_for_the_one_that_frees_up_first(monkeypatch):
+    import synapse.llm as L
+    from synapse.llm import LLMResponse
+    slept = []
+
+    async def fake_sleep(sec):
+        slept.append(sec)
+    monkeypatch.setattr(L.asyncio, "sleep", fake_sleep)
+
+    class Limited:
+        def __init__(self, name, ra):
+            self.model, self.ra, self.n = name, ra, 0
+
+        async def chat(self, *a, **k):
+            self.n += 1
+            if self.n == 1:
+                raise LLMError("429", 429, retry_after=self.ra)
+            return LLMResponse(text=self.model, provider="groq", model=self.model, latency_ms=1)
+
+    r = await FallbackLLM(Limited("big", 40), None, backup=Limited("small", 12)).chat([{"role": "user", "content": "x"}])
+    assert r.text == "small" and slept and 12 <= slept[0] < 13
+
+
+def test_router_pairs_gpt_oss_models_as_backups(tmp_path, server):
+    s = mk(tmp_path, server).model_copy(update={"fast_model": "openai/gpt-oss-120b"})
+    r = ModelRouter(s)
+    c = r._client(f"{r.remote[0]}:openai/gpt-oss-120b")
+    assert isinstance(c, FallbackLLM) and c.backup.model == "openai/gpt-oss-20b"

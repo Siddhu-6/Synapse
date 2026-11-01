@@ -205,46 +205,86 @@ class OpenAICompatLLM:
 
 
 class FallbackLLM:
-    """Try the fast provider first; on failure fall back to the local model so a run never dies
-    because a free-tier quota ran out. A rejected key disables the fast provider for the session
-    instead of paying a failed round-trip on every call; a rate limit pauses it for a minute."""
+    """Hosted model first, then a second hosted model, then the local one, so a run never dies because a
+    free-tier quota ran out. Groq's limits are per model: when gpt-oss-120b is rate-limited, gpt-oss-20b
+    usually isn't, and switching costs nothing while waiting costs up to a minute. A rejected key disables
+    the hosted provider for the session; a rate-limited model is skipped until its limit resets."""
     streams = True
 
-    MAX_WAIT = 45.0   # waiting out a rate limit (Groq says "try again in 32s") beats ~60s of local 7B planning
+    SHORT_WAIT = 3.0  # just retry the same model
+    MAX_WAIT = 45.0   # longest wait for a hosted model before using the local one (~60s per local plan)
 
-    def __init__(self, fast: LLM, slow: LLM):
-        self.fast, self.slow = fast, slow
-        self.fast_off_until = 0.0
+    def __init__(self, fast: LLM, slow: LLM | None, backup: LLM | None = None):
+        self.fast, self.slow, self.backup = fast, slow, backup
+        self.off_until: dict[int, float] = {}
         self.last_error: str | None = None
 
+    @property
+    def fast_off_until(self) -> float:        # kept for callers that read the primary model's pause
+        return self.off_until.get(id(self.fast), 0.0)
+
+    def _notify(self, secs: float, note: str | None = None) -> None:
+        hook = WAIT_HOOK.get()
+        if hook:
+            hook(secs) if note is None else hook(secs, note)
+
     async def chat(self, messages, json_schema=None, max_tokens=None, on_token: OnToken | None = None):
-        why = None
-        if time.time() >= self.fast_off_until:
+        args = (messages, json_schema, max_tokens)
+        why, waits = None, []                       # waits: (seconds, model) for rate-limited hosted models
+        hosted = [m for m in (self.fast, self.backup) if m is not None]
+        for i, m in enumerate(hosted):
+            if time.time() < self.off_until.get(id(m), 0.0):
+                why = why or f"{getattr(m, 'model', 'hosted model')} paused after: {self.last_error}"
+                continue
             try:
                 try:
-                    return await self.fast.chat(messages, json_schema, max_tokens, on_token=on_token)
+                    return self._tag(await m.chat(*args, on_token=on_token), why)
                 except LLMError as e:
-                    if e.status != 429 or e.retry_after is None or e.retry_after > self.MAX_WAIT:
-                        raise
-                    log.info("rate limited; waiting %.1fs for the hosted model", e.retry_after)
-                    hook = WAIT_HOOK.get()
-                    if hook:
-                        hook(e.retry_after)
-                    await asyncio.sleep(e.retry_after + 0.3)
-                    return await self.fast.chat(messages, json_schema, max_tokens, on_token=on_token)
+                    if e.status == 429 and e.retry_after is not None and e.retry_after <= self.SHORT_WAIT:
+                        self._notify(e.retry_after)
+                        await asyncio.sleep(e.retry_after + 0.2)
+                        return self._tag(await m.chat(*args, on_token=on_token), why)
+                    raise
             except LLMError as e:
                 self.last_error = why = str(e)
-                pause = (float("inf") if e.status in (401, 403, 404)
-                         else min(e.retry_after or 20.0, 60.0) if e.status == 429 else 0.0)
-                self.fast_off_until = time.time() + pause
-                log.warning("fast model failed (%s); using local model%s", e,
-                            " for the rest of this session" if pause == float("inf") else "")
-        else:
-            why = f"hosted model paused after: {self.last_error}"
+                name = getattr(m, "model", "hosted model")
+                if e.status in (401, 403):            # the key is shared, so the other hosted model fails too
+                    for x in hosted:
+                        self.off_until[id(x)] = float("inf")
+                    log.warning("hosted provider rejected the key (%s); using the local model from now on", e)
+                    break
+                if e.status == 429:
+                    ra = e.retry_after if e.retry_after is not None else 20.0
+                    self.off_until[id(m)] = time.time() + min(ra, 600.0)
+                    waits.append((ra, m))
+                    nxt = hosted[i + 1] if i + 1 < len(hosted) else None
+                    if nxt is not None:
+                        self._notify(0, f"{name} hit its free-tier limit; using {getattr(nxt, 'model', 'the backup model')}")
+                    log.warning("%s rate limited (retry in %.0fs): %s", name, ra, str(e)[:240])
+                    continue
+                self.off_until[id(m)] = time.time() + (float("inf") if e.status == 404 else 0.0)
+                log.warning("hosted model %s failed (%s)", name, e)
+        if waits:                                    # every hosted model is rate-limited: wait for the soonest
+            ra, m = min(waits, key=lambda w: w[0])
+            if ra <= self.MAX_WAIT:
+                self._notify(ra)
+                await asyncio.sleep(ra + 0.3)
+                try:
+                    r = await m.chat(*args, on_token=on_token)
+                    self.off_until[id(m)] = 0.0
+                    return r
+                except LLMError as e:
+                    self.last_error = why = str(e)
+        if self.slow is None:
+            raise LLMError(why or "no model available", 429 if waits else None)
         try:
-            r = await self.slow.chat(messages, json_schema, max_tokens, on_token=on_token)
+            r = await self.slow.chat(*args, on_token=on_token)
         except LLMError as e:
             raise LLMError(f"{why} — and the local fallback failed too: {e}" if why else str(e), e.status) from e
+        return r.model_copy(update={"fallback_from": why}) if why else r
+
+    @staticmethod
+    def _tag(r, why):
         return r.model_copy(update={"fallback_from": why}) if why else r
 
 
@@ -252,6 +292,8 @@ class FallbackLLM:
 RUN_MODEL: contextvars.ContextVar[str | None] = contextvars.ContextVar("synapse_run_model", default=None)
 # Called with the seconds left before a rate-limited call is retried, so the dashboard can say why it paused.
 WAIT_HOOK: contextvars.ContextVar = contextvars.ContextVar("synapse_wait_hook", default=None)
+# Groq rate-limits each model separately: when one hits its limit, its sibling usually still has room.
+BACKUP_MODEL = {"openai/gpt-oss-120b": "openai/gpt-oss-20b", "openai/gpt-oss-20b": "openai/gpt-oss-120b"}
 NON_CHAT = re.compile(r"whisper|tts|guard|playai|orpheus|embed|distil|audio|transcri|moderation", re.I)
 
 
@@ -362,9 +404,11 @@ class ModelRouter:
                 self._clients[mid] = OllamaLLM(self.s.ollama_url, name, self.s.llm_timeout, self.s.num_ctx, self.s.keep_alive)
             else:
                 _, base, key = self.remote
-                hosted = OpenAICompatLLM(base, key, name, min(self.s.llm_timeout, 90) if self.local_id else self.s.llm_timeout, prov,
-                                         reasoning_effort=self.s.reasoning_effort)
-                self._clients[mid] = FallbackLLM(hosted, self._client(self.local_id)) if self.local_id else hosted
+                mk = lambda n: OpenAICompatLLM(base, key, n, min(self.s.llm_timeout, 90) if self.local_id else self.s.llm_timeout,  # noqa: E731
+                                               prov, reasoning_effort=self.s.reasoning_effort)
+                spare = self.s.fast_backup_model or BACKUP_MODEL.get(name)
+                self._clients[mid] = FallbackLLM(mk(name), self._client(self.local_id) if self.local_id else None,
+                                                 backup=mk(spare) if spare and spare != name else None)
         return self._clients[mid]
 
     def run_choice(self) -> str:

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     fast_base_url: str | None = None
     fast_model: str | None = None
     fast_api_key: SecretStr | None = None
+    fast_backup_model: str | None = None   # used when the main hosted model is rate-limited (default: its sibling)
     num_ctx: int = 8192              # Ollama context window; larger = slower prompt processing
     keep_alive: str = "30m"          # keep the model resident between calls (avoids reload stalls)
     reasoning_effort: Literal["low", "medium", "high"] | None = "low"   # gpt-oss thinking budget (hosted)
@@ -53,7 +54,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
-    @field_validator("openai_api_key", "fast_api_key", "fast_base_url", "fast_model", "notion_token",
+    @field_validator("openai_api_key", "fast_api_key", "fast_base_url", "fast_model", "fast_backup_model", "notion_token",
                      "n8n_secret", "api_token", "user_name", "user_email", mode="before")
     @classmethod
     def _blank_is_unset(cls, v):

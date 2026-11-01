@@ -96,9 +96,9 @@ class Runtime:
         # (This task has its own context, so the value is local to this run.)
         if self._run_model.get(run_id):
             RUN_MODEL.set(self._run_model[run_id])
-        WAIT_HOOK.set(lambda secs: self._emit(run_id, {
+        WAIT_HOOK.set(lambda secs, note=None: self._emit(run_id, {
             "type": "progress", "stage": self._stage.get(run_id),
-            "description": f"Free-tier rate limit reached; continuing in {round(secs)}s"}))
+            "description": note or f"Free-tier rate limit reached; continuing in {round(secs)}s"}))
         try:
             async for chunk in self.graph.astream(inp, cfg, stream_mode="updates"):
                 for node, upd in chunk.items():
