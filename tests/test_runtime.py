@@ -354,3 +354,19 @@ def test_research_ask_needs_a_research_step():
     assert any("don't answer from memory" in e for e in validate_plan(empty, tools_, 6, False, "TOp 3 ai agent frameworks"))
     assert not validate_plan(empty, tools_, 6, False, "What's the difference between RAG and fine-tuning?")
     assert not validate_plan(empty, set(), 6, False, "top 3 ai agent frameworks")      # web disabled: allowed
+
+
+async def test_web_content_is_added_to_a_note_instead_of_overwriting_it(settings, monkeypatch):
+    """Job research -> update_note on the existing note was blocked ("destructive action derived from untrusted
+    content") and the run failed. Web-derived text is now added to the note, behind an approval."""
+    monkeypatch.setattr(G, "UNTRUSTED_TOOLS", G.UNTRUSTED_TOOLS | {"search_notes"})   # stands in for research offline
+    settings.vault_path.mkdir(parents=True)
+    (settings.vault_path / "Jobs.md").write_text("# Jobs\n\n- old lead")
+    p = plan([tool("s1", "read_note", path="Jobs.md"), tool("s2", "search_notes", query="jobs"),
+              gen("s3", "List jobs from {{s2}}"),
+              tool("s4", "update_note", path="Jobs.md", content="{{s3}}", expected_sha256="{{s1.sha256}}")])
+    ap = approve(True)
+    d, _ = await run(settings, [p, "- AI Engineer at Acme", "Saved.", {"facts": []}], "find jobs and save them to my vault", ap)
+    body = (settings.vault_path / "Jobs.md").read_text()
+    assert "- old lead" in body and "AI Engineer at Acme" in body          # nothing lost, new list added
+    assert d["status"] == "success" and ap.seen and ap.seen[0]["tool"] == "append_to_note"

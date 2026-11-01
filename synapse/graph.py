@@ -552,7 +552,8 @@ PLANNER_RULES = """Rules:
 - Note paths are vault-relative Markdown paths like "Research/LangGraph vs CrewAI.md". Link related notes with [[Note Name]].
 - If the user asks to save/store anything, the plan MUST include create_note (or append_to_note/update_note).
 - Before create_note, check "Notes that ALREADY EXIST". If the note is already there, NEVER create another:
-  new facts -> append_to_note(path, content); rewrite/merge -> read_note(path) then update_note(path, content,
+  new facts, and anything found on the web or in email -> append_to_note(path, content) (web content may never
+  overwrite a note); rewrite/merge -> read_note(path) then update_note(path, content,
   expected_sha256="{{s1.sha256}}").
 - "Combine/merge these notes into one": gather_notes(query) -> generate ONE merged note from {{s1}} (keep every fact,
   drop duplicates) -> update_note or create_note for the kept note -> delete_note for each duplicate path.
@@ -905,6 +906,12 @@ def build_graph(llm: LLM, tools: Toolbox, memory: Memory, s: Settings, checkpoin
                     args["to"] = G.clean_addresses(re.split(r"[,;\s]+", args["to"]), known)
                 if isinstance(args.get("body"), str):
                     args["body"], not_ready = email_ready(inline_email_body(args["body"], await latest_content(results)))
+            if st.tool == "update_note" and t and isinstance(args.get("path"), str):
+                # Web-derived text never overwrites a note (that is the injection risk the guard blocks).
+                # Adding it to the note keeps the user's request working and loses nothing.
+                st = st.model_copy(update={"tool": "append_to_note"})
+                args = {"path": args["path"], "content": args.get("content", "")}
+                ev["redirected"] = f"content came from the web: added to {args['path']} instead of overwriting it"
             if st.tool == "create_note" and not args.get("overwrite") and isinstance(args.get("path"), str):
                 twin = same_subject(args["path"], state.get("note_paths") or [])
                 if twin:   # a note on this subject exists: add to it instead of creating a duplicate
