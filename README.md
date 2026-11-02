@@ -1,3 +1,7 @@
+
+
+https://github.com/user-attachments/assets/222e9887-f821-44f5-ab65-83defc5724f5
+
 # Synapse
 
 [![CI](https://github.com/Siddhu-6/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddhu-6/Synapse/actions/workflows/ci.yml)
@@ -13,10 +17,9 @@ Small talk gets a quick answer. Real work gets a plan, a team, and reliable exec
   <img src="docs/images/demo.gif" alt="Synapse planning a goal, asking for approval before risky steps, and finishing it" width="840">
 </p>
 
-<!-- VIDEO: on github.com, edit this file and drag Synapse_GitHub.mp4 onto the empty line below. GitHub uploads it and pastes a link that plays as a video. Then delete this comment. -->
+https://github.com/user-attachments/assets/bf624a76-dea5-43aa-86e3-af40b2a8e444
 
-
-<p align="center"><sub>Full demo with narration: 2.5 minutes, sound on.</sub></p>
+   <p align="center"><sub>Full demo with narration, 2.5 min, sound on · <a href="LINKEDIN_MP4_LINK">HD version</a> · <a href="RAW_CUT_LINK">version without narration</a></sub></p>
 
 ---
 
