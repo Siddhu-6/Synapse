@@ -1,7 +1,3 @@
-
-
-https://github.com/user-attachments/assets/222e9887-f821-44f5-ab65-83defc5724f5
-
 # Synapse
 
 [![CI](https://github.com/Siddhu-6/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddhu-6/Synapse/actions/workflows/ci.yml)
@@ -19,7 +15,7 @@ Small talk gets a quick answer. Real work gets a plan, a team, and reliable exec
 
 https://github.com/user-attachments/assets/bf624a76-dea5-43aa-86e3-af40b2a8e444
 
-   <p align="center"><sub>Full demo with narration, 2.5 min, sound on · <a href="LINKEDIN_MP4_LINK">HD version</a> · <a href="RAW_CUT_LINK">version without narration</a></sub></p>
+   <p align="center"><sub>Full demo with narration, 2.5 min, sound on · <a href="[LINKEDIN_MP4_LINK](https://drive.google.com/file/d/1sVnsduBjoEkY0Jc4lE1JdxAo5TwEByeX/view?usp=sharing)">HD version</a> · <a href="[RAW_CUT_LINK](https://drive.google.com/file/d/1sVnsduBjoEkY0Jc4lE1JdxAo5TwEByeX/view?usp=sharing)">version without narration</a></sub></p>
 
 ---
 
