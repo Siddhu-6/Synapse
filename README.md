@@ -1,6 +1,6 @@
 # Synapse
 
-[![CI](https://github.com/Siddhu-6/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddhu-6/Synapse/actions/workflows/ci.yml)
+[![CI](https://github.com/Siddhu-6/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddhu-6/Synapse/actions/workflows/ci.yml) [![Demo](https://img.shields.io/badge/demo-watch%20video-8b6cff)](https://drive.google.com/file/d/1UmWFp0_CbZebmksqs3QpGCQudFYTDOi4/view?usp=sharing)
 
 > A personal agentic assistant that takes a goal, plans it, executes it through MCP tools and specialist agents,
 > verifies what it did, asks before anything risky, and keeps what matters in an Obsidian vault.
