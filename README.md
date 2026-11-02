@@ -9,14 +9,6 @@ Synapse is not a chatbot that just "**answers**", but a multi-agent system that 
 
 Small talk gets a quick answer. Real work gets a plan, a team, and reliable execution. Anything irreversible or high-risk waits for your approval, because autonomy without accountability is just a very confident bug.
 
-<p align="center">
-  <img src="docs/images/demo.gif" alt="Synapse planning a goal, asking for approval before risky steps, and finishing it" width="840">
-</p>
-
-https://github.com/user-attachments/assets/bf624a76-dea5-43aa-86e3-af40b2a8e444
-
-   <p align="center"><sub>Full demo with narration, 2.5 min, sound on · <a href="[LINKEDIN_MP4_LINK](https://drive.google.com/file/d/1sVnsduBjoEkY0Jc4lE1JdxAo5TwEByeX/view?usp=sharing)">HD version</a> · <a href="[RAW_CUT_LINK](https://drive.google.com/file/d/1sVnsduBjoEkY0Jc4lE1JdxAo5TwEByeX/view?usp=sharing)">version without narration</a></sub></p>
-
 ---
 
 <p align="center">
