@@ -41,7 +41,7 @@ Small talk gets a quick answer. Real work gets a plan, a team, and reliable exec
 - **Manages tasks and schedules.** Adds, lists and completes tasks, and runs goals on a timer ("every weekday at 8:30, brief me").
 - **Works with Notion.** Searches and reads pages, creates new pages, and adds rows to databases.
 - **Knows the everyday stuff.** Weather, the current date and time, and what it has learned about you.
-- **Handles inbound messages.** An incoming WhatsApp or SMS gets a routine reply automatically, or you get pinged if it needs a human.
+- **Handles inbound messages.** An incoming WhatsApp or SMS (via n8n) gets a drafted reply if it's routine, sent once you approve, or you get a one-line summary if it needs you personally.
 - **Calls in specialists.** Deep research, study guides, decisions, editing and note synthesis are handled by dedicated CrewAI teams.
 
 ## How it works
@@ -126,8 +126,8 @@ Otherwise known as the "please don't email my professor at 3am" layer.
 ## Models
 
 Local-first with **Ollama**, or free and fast with **Groq** (`openai/gpt-oss-120b` answers in 1 to 3 seconds).
-Switch models from the dashboard at any time. Each run finishes on the model it started with, and a hosted
-model that hits a problem falls back to local automatically.
+Switch models from the dashboard at any time. If a hosted model hits its rate limit mid-run, Synapse moves to a
+second hosted model, then to your local one, so a run never dies on a limit, and the trace records why it switched.
 
 ## Quickstart
 
