@@ -1,11 +1,24 @@
 # Synapse
 
+[![CI](https://github.com/Siddhu-6/Synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/Siddhu-6/Synapse/actions/workflows/ci.yml)
+
 > A personal agentic assistant that takes a goal, plans it, executes it through MCP tools and specialist agents,
 > verifies what it did, asks before anything risky, and keeps what matters in an Obsidian vault.
 
 Synapse is not a chatbot that just "**answers**", but a multi-agent system that "**executes**". Every request is understood, planned, handed to the right agent, executed through real tools, checked, and remembered, and the dashboard shows each step happening live.
 
-Small talk gets a quick answer. Real work gets a plan, a team, and reliable execution. Anything irreversible with high risks waits for your approval, because autonomy without accountability is just a very confident bug.
+Small talk gets a quick answer. Real work gets a plan, a team, and reliable execution. Anything irreversible or high-risk waits for your approval, because autonomy without accountability is just a very confident bug.
+
+<p align="center">
+  <img src="docs/images/demo.gif" alt="Synapse planning a goal, asking for approval before risky steps, and finishing it" width="840">
+</p>
+
+<!-- VIDEO: on github.com, edit this file and drag Synapse_GitHub.mp4 onto the empty line below. GitHub uploads it and pastes a link that plays as a video. Then delete this comment. -->
+
+
+<p align="center"><sub>Full demo with narration: 2.5 minutes, sound on.</sub></p>
+
+---
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="Synapse dashboard: live journal, pipeline and trace" width="75%">
@@ -89,7 +102,7 @@ approvals and guardrails apply. Nobody gets to freelance.
 ## MCP servers
 
 Every capability sits behind the **Model Context Protocol**. Each tool call is schema-checked, time-limited,
-risk-classed and logged, 38 tools in total.
+risk-classed and logged, 40 tools in total.
 
 | Server | Capabilities |
 |---|---|
@@ -117,7 +130,7 @@ Otherwise known as the "please don't email my professor at 3am" layer.
 - **Every run is traced:** model, latency, tokens, tool calls, retries, approvals, and why it fell back to another model if it did.
 - **A live dashboard:** the pipeline, agents lighting up as they work, answers streaming in, your vault as an Obsidian-style graph, memory, tools and eval results.
 - **Behaviour evals:** `python -m evals.run` checks tool choice, arguments, approvals, recovery and prompt-injection resistance against the real graph.
-- **78 tests,** which test behaviour, not whether `import` works.
+- **101 tests,** which test behaviour, not whether `import` works.
 
 ## Models
 
@@ -170,4 +183,6 @@ Python, LangGraph, CrewAI, MCP, FastAPI, SQLite, React + Vite + Tailwind, Ollama
 
 ---
 
-Built by **SIDDHIKESH**...[Synapse-One of the reasons for streak-gap on my profile]
+Built by **Sid Gavit** · [LinkedIn](https://www.linkedin.com/in/sid-gavit6) · [Portfolio](https://sid-gavit-portfolio.vercel.app)
+
+Also the main reason for the gap in my GitHub streak.
