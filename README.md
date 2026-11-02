@@ -176,4 +176,4 @@ Python, LangGraph, CrewAI, MCP, FastAPI, SQLite, React + Vite + Tailwind, Ollama
 
 Built by **Sid Gavit** · [LinkedIn](https://www.linkedin.com/in/sid-gavit6) · [Portfolio](https://sid-gavit-portfolio.vercel.app)
 
-Also the main reason for the gap in my GitHub streak.
+Synapse is also the main reason for the gap in my GitHub streak.
