@@ -320,10 +320,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if STATIC.is_dir():  # built dashboard, served by the same process
         app.mount("/assets", StaticFiles(directory=STATIC / "assets"), name="assets")
 
+        root = STATIC.resolve()
+
         @app.get("/{full_path:path}")
         async def spa(full_path: str):
-            f = STATIC / full_path
-            return FileResponse(f if f.is_file() and f.suffix else STATIC / "index.html")
+            # Serve only files inside the built dashboard. "//etc/x.conf" arrives as an absolute path,
+            # which pathlib lets replace the base, and "..%2f" can climb out of it. Anything else
+            # (client-side routes, escapes) gets the app shell.
+            f = (root / full_path.lstrip("/")).resolve()
+            ok = f.is_relative_to(root) and f.is_file() and f.suffix
+            return FileResponse(f if ok else root / "index.html")
 
     return app
 

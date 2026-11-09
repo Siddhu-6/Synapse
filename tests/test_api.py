@@ -138,6 +138,27 @@ async def test_vault_note_endpoint_blocks_traversal(settings):
         await mgr.__aexit__(None, None, None)
 
 
+async def test_dashboard_fallback_never_serves_files_outside_static(settings, tmp_path, monkeypatch):
+    import synapse.api as api_mod
+    static = tmp_path / "static"
+    (static / "assets").mkdir(parents=True)
+    (static / "index.html").write_text("<!doctype html>shell")
+    (static / "logo.svg").write_text("<svg/>")
+    secret = tmp_path / "secret.json"
+    secret.write_text('{"key": "do-not-leak"}')
+    monkeypatch.setattr(api_mod, "STATIC", static)
+    c, mgr = await client(settings, [], token="s3cret")
+    try:
+        assert (await c.get("/logo.svg")).text == "<svg/>"           # real dashboard files still served
+        assert (await c.get("/runs/abc")).text.endswith("shell")      # client-side routes get the shell
+        for path in (f"/{secret}", "/..%2fsecret.json", "/%2e%2e/secret.json", "/assets/..%2f..%2fsecret.json"):
+            r = await c.get("http://test" + path)
+            assert "do-not-leak" not in r.text, path
+    finally:
+        await c.aclose()
+        await mgr.__aexit__(None, None, None)
+
+
 async def test_vault_graph_ignores_hidden_and_broken_links(tmp_path):
     (tmp_path / ".obsidian").mkdir()
     (tmp_path / ".obsidian" / "conf.md").write_text("x")
